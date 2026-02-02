@@ -20,24 +20,29 @@ def get_fgvc_dataloaders(root_dir: str, batch_size: int = 32, image_size: int = 
     """
     Create data loaders for the FGVC Aircraft dataset.
     """
-    # Remove the banner at the bottom displaying copyright information. Add a
+    # Remove the banner at the bottom displaying copyright information. Resize,
+    # then crop the image at a random location to prevent memorization. Add a
     # random horizontal flip to the training set, to enable better generaliza-
-    # tion. Normalization statistics reflect per-channel values for ImageNet.
+    # tion. Normalization statistics reflect per-channel values from ImageNet.
     train_transform = transforms.Compose([transforms.Lambda(remove_banner),
-                                          transforms.Resize((image_size, image_size)),
+                                          transforms.Resize(image_size + 32),
+                                          transforms.RandomCrop(image_size), 
                                           transforms.RandomHorizontalFlip(),
                                           transforms.ToTensor(),
                                           transforms.Normalize(mean = [0.485, 0.456, 0.406],
                                                                std = [0.229, 0.224, 0.225])])
-
+    
+    # For the test set, cropping the image at the center helps ensure determi-
+    # nistic evaluation.
     test_transform = transforms.Compose([transforms.Lambda(remove_banner),
-                                         transforms.Resize((image_size, image_size)),
+                                         transforms.Resize(image_size + 32),
+                                         transforms.CenterCrop(image_size),
                                          transforms.ToTensor(),
                                          transforms.Normalize(mean = [0.485, 0.456, 0.406],
                                                               std = [0.229, 0.224, 0.225])])
 
     # Create training and test sets
-    train_dataset = FGVCAircraft(root_dir, split = "train", download = True, transform = train_transform)
+    train_dataset = FGVCAircraft(root_dir, split = "trainval", download = True, transform = train_transform)
     test_dataset = FGVCAircraft(root_dir, split = "test", download = True, transform = test_transform)
 
     # Create data loaders
