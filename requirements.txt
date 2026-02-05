@@ -2,6 +2,8 @@ torch
 torchvision
 numpy
 pandas
-matplotlib
 scikit-learn
 Pillow
+clean-fid
+matplotlib
+tqdm

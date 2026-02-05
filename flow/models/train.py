@@ -79,20 +79,21 @@ class Trainer(ABC):
         self.model.eval()
 
 class CFGTrainer(Trainer):
-    def __init__(self, path: GaussianConditionalProbabilityPath, model: ConditionalVectorField, eta: float, **kwargs):
+    def __init__(self, path: GaussianConditionalProbabilityPath, model: ConditionalVectorField, eta: float, null_label: int, **kwargs):
         # Constrain the probability that we will discard the original label to
         # 0 < eta < 1.
         assert eta > 0 and eta < 1
         super().__init__(model, **kwargs)
         self.eta = eta
         self.path = path
+        self.null_label = null_label
 
     def get_train_loss(self, batch_size: int) -> torch.Tensor:
-        self.path.to(self.device)
+        self.path = self.path.to(self.device)
         z, y = self.path.p_data.sample(batch_size)
 
         mask = torch.rand(batch_size, device = self.device) < self.eta
-        y[mask] = 100
+        y[mask] = self.null_label
 
         t = torch.rand(batch_size, 1, 1, 1, device = self.device)
         x = self.path.sample_conditional_path(z, t)

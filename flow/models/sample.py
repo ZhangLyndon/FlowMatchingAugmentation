@@ -161,6 +161,45 @@ class ConditionalProbabilityPath(nn.Module, ABC):
         """
         pass
 
+class IsotropicGaussian(nn.Module, Sampleable):
+    """
+    Isotropic multivariate Gaussian distribution that can be sampled from.
+    """
+    def __init__(self, shape: List[int], std: float = 1.0):
+        """
+        Initialize a multivariate Gaussian distributed as N(0, std^2 * I).
+
+        Parameters
+        ----------
+        shape : List[int]
+            Shape of a single sample (excluding batch dimension).
+        std : float, optional
+            Standard deviation of each component. Default is 1.0.
+        """
+        super().__init__()
+        self.shape = shape
+        self.std = std
+        # Dummy tensor used to track the module's device
+        self.dummy = nn.Buffer(torch.zeros(1))
+
+    def sample(self, num_samples) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Draw random samples from the multivariate Gaussian.
+
+        Parameters
+        ----------
+        num_samples : int
+            Number of samples to draw from the distribution.
+
+        Returns
+        -------
+        samples : torch.Tensor, shape (num_samples, *shape)
+            Samples from the distribution.
+        labels : None
+            Class labels are not defined for Gaussian samples.
+        """
+        return self.std * torch.randn(num_samples, *self.shape).to(self.dummy.device), None
+
 class FGVCSampler(nn.Module, Sampleable):
     """
     Wrapper around the FGVC Aircraft dataset that enables random sampling of
@@ -197,27 +236,27 @@ class FGVCSampler(nn.Module, Sampleable):
         if num_samples > dataset_size:
             raise ValueError(f"num_samples exceeds dataset size: {dataset_size}")
         
-        samples, labels = [], []
+        samples_list, labels_list = [], []
         count = 0
 
-        for images, models in self.train_loader:
+        for images, labels in self.train_loader:
             needed = num_samples - count
             batch_size = images.size(0)
 
             if batch_size <= needed:
-                samples.append(images)
-                labels.append(models)
+                samples_list.append(images)
+                labels_list.append(labels)
                 count += batch_size
             else:
-                samples.append(images[:needed])
-                labels.append(models[:needed])
+                samples_list.append(images[:needed])
+                labels_list.append(labels[:needed])
                 count += needed
 
             if count >= num_samples:
                 break
 
-        samples = torch.cat(samples).to(self.dummy.device)
-        labels = torch.cat(labels).to(dtype = torch.int64, device = self.dummy.device)
+        samples = torch.cat(samples_list).to(self.dummy.device)
+        labels = torch.cat(labels_list).to(dtype = torch.int64, device = self.dummy.device)
         return samples, labels
 
 class GaussianConditionalProbabilityPath(ConditionalProbabilityPath):

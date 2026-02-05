@@ -50,9 +50,10 @@ class ConditionalVectorField(nn.Module, ABC):
         pass
 
 class CFGVectorFieldODE(ODE):
-    def __init__(self, net: ConditionalVectorField, guidance_scale: float = 1.0):
+    def __init__(self, net: ConditionalVectorField, null_label: int, guidance_scale: float = 1.0):
         self.net = net
         self.guidance_scale = guidance_scale
+        self.null_label = null_label
 
     def drift_coefficient(self, x: torch.Tensor, t: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         """
@@ -76,6 +77,6 @@ class CFGVectorFieldODE(ODE):
             Classifier-free guided vector field u_t^tilde(x|y).
         """
         guided_vector_field = self.net(x, t, y)
-        unguided_y = torch.ones_like(y) * 100
+        unguided_y = torch.ones_like(y) * self.null_label
         unguided_vector_field = self.net(x, t, unguided_y)
         return (1 - self.guidance_scale) * unguided_vector_field + self.guidance_scale * guided_vector_field
