@@ -5,7 +5,7 @@ from torch.utils.data import DataLoader
 from abc import ABC, abstractmethod
 from typing import Optional, Tuple, List
 
-from ..utils.scheduler import Alpha, Beta
+from flow.utils import Alpha, Beta
 
 class Sampleable(ABC):
     """

@@ -4,8 +4,7 @@ import torch.nn as nn
 from tqdm import tqdm
 from abc import ABC, abstractmethod
 
-from .flow import ConditionalVectorField
-from .sample import GaussianConditionalProbabilityPath
+from flow.models import ConditionalVectorField, GaussianConditionalProbabilityPath
 
 def model_size_bytes(model: nn.Module) -> int:
     """

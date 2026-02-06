@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 import torch
 import torch.nn as nn
 
-from .modules import FourierEncoder, ResidualLayer, Encoder, Midcoder, Decoder
+from flow.models import FourierEncoder, ResidualLayer, Encoder, Midcoder, Decoder
 
 class ConditionalVectorField(nn.Module, ABC):
     """

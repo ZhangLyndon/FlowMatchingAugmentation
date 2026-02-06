@@ -10,16 +10,16 @@ from torchvision.utils import save_image
 from tqdm import tqdm
 from cleanfid import fid
 
-from models import (CFGVectorFieldODE,
-					CFGTrainer,
-					FGVCSampler,
-					GaussianConditionalProbabilityPath,
-					IsotropicGaussian,
-					UNet)
+from flow.models import (CFGVectorFieldODE,
+						 CFGTrainer,
+						 FGVCSampler,
+						 GaussianConditionalProbabilityPath,
+						 IsotropicGaussian,
+						 UNet)
+from flow.utils import LinearAlpha, LinearBeta
 
-from simulator import EulerSimulator
-from utils import LinearAlpha, LinearBeta
-from ..utils import get_fgvc_dataloaders
+from flow import EulerSimulator
+from utils import get_fgvc_dataloaders
 
 class FlowMatchingPipeline:
 	def __init__(self):

@@ -1,4 +1,1 @@
-from .scheduler import LinearAlpha, LinearBeta
-
-__all__ = ["LinearAlpha",
-           "LinearBeta"]
+from .scheduler import Alpha, Beta, LinearAlpha, LinearBeta
