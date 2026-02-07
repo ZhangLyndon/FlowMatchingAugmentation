@@ -4,6 +4,5 @@ numpy
 pandas
 scikit-learn
 Pillow
-clean-fid
 matplotlib
 tqdm

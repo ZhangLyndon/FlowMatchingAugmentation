@@ -100,6 +100,24 @@ class ClassificationTrainer:
 
         return losses.avg, top1_acc.avg, top5_acc.avg
 
+	def save_checkpoint(self, epoch, val_acc, is_best = False):
+        """
+        Save the ResNet classifier state as a checkpoint.
+        """
+        state = {"epoch": epoch,
+		         "model_state_dict": self.model.state_dict(),
+		         "optimizer_state_dict": self.optimizer.state_dict(),
+		         "scheduler_state_dict": self.scheduler.state_dict(),
+		         "best_acc": self.best_acc,
+		         "val_acc": val_acc}
+
+		checkpoint_path = os.path.join(self.args.checkpoint_dir, f"resnet_epoch_{epoch}.pt")
+		torch.save(state, checkpoint_path)
+
+		if is_best:
+			best_path = os.path.join(self.args.checkpoint_dir, "resnet_best_val_top1.pt")
+			torch.save(state, best_path)
+
     def train(self, train_loader, val_loader):
         """
 	    Train the model.
@@ -131,11 +149,16 @@ class ClassificationTrainer:
 			self.val_accs.append(val_top1)
 
 			# Best model is defined by the top-1 accuracy (proportion of samples
-			# where the top-scoring class matches ground truth) on the validation
-			# set.
+			# where the top-scoring class matches the ground truth) on the vali-
+			# dation set.
 			is_best = val_top1 > self.best_acc
 			if is_best:
 				self.best_acc = val_top1
+
+			# Save model state as a checkpoint every N epochs, or if validation
+			# top-1 accuracy reaches a new peak.
+            if (epoch + 1) % self.args.save_interval == 0 or is_best:
+	            self.save_checkpoint(epoch, val_top1, is_best)
 
 			# Print summary statistics for epoch
 			print(f"[Epoch {epoch + 1}/{self.args.epochs}]")
@@ -191,6 +214,9 @@ def parse_args():
     # Output
     parser.add_argument("--results_dir", type = str, default = "/content/results/classification",
 				    	help = "Directory for classification results")
+    parser.add_argument("--checkpoint_dir", type = str, default = "/content/checkpoints",
+				    	help = "Directory for model checkpoints")
+    parser.add_argument("--save_interval", type = int, default = 5, help = "Number of epochs between checkpoint saves")
 
 	# General
 	parser.add_argument("--seed", type = int, default = 42, help = "Random seed")
@@ -204,8 +230,9 @@ def main():
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
 
-    # Create directory for classification results
+    # Create directories for classification results and model checkpoints
 	os.makedirs(args.results_dir, exist_ok = True)
+    os.makedirs(args.checkpoint_dir, exist_ok = True)
 
 	train_loader, test_loader = get_fgvc_dataloaders(root_dir = args.data_root,
 													 batch_size = args.batch_size,
