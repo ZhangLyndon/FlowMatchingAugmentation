@@ -45,10 +45,10 @@ class FlowMatchingPipeline:
 						 t_embed_dim = 128,
 						 y_embed_dim = 128)
 
-		self.trainer = CFGTrainer(path = self.path, model = self.unet, eta = 0.1)
+		self.trainer = CFGTrainer(path = self.path, model = self.unet, eta = 0.1, null_label = 100)
 	
 	def generate_samples(self,
-						 samples_per_class: int = 64,
+						 samples_per_class: int = 67,
 						 guidance_scales: Tuple[float, ...] = (3.0, 5.0, 7.0),
 						 num_timesteps: int = 100) -> Dict[float, Tuple[torch.Tensor, torch.Tensor]]:
 
@@ -94,18 +94,16 @@ class FlowMatchingPipeline:
     	for w, (x1, y) in samples.items():
     		x1 = denorm(x1).clamp(0, 1)
     		samples[w] = (x1, y)
-
-			# Save each image in a subdirectory named by guidance scale, with
-			# class label and guidance scale in the filename.
 			num_samples = y.shape[0]
-			directory = f"/content/images/w-{w}"
-			os.makedirs(directory, exist_ok = True)
 
 			for index in range(num_samples):
 				image = x1[index]
 				class_label = y[index].item()
+				# Organize images based on the guidance scale and class label
+				directory = f"/content/images/w-{self.guidance_scale}/class-{class_label}"
+				os.makedirs(directory, exist_ok = True)
 
-				file_name = f"image-{index}_class-{class_label:02d}_w-{w}.png"
+				file_name = f"image-{index}_w-{w}_class-{class_label:02d}.png"
 				file_path = os.path.join(directory, file_name)
 				save_image(image, fp = file_path)
 
@@ -121,7 +119,7 @@ class FlowMatchingPipeline:
 
 def main():
 	parser = argparse.ArgumentParser(description = "Flow Matching Pipeline", add_help = False)
-    parser.add_argument("--num_samples", type = int, default = 64, help = "Number of samples to generate")
+    parser.add_argument("--num_samples", type = int, default = 67, help = "Number of samples to generate")
     parser.add_argument("--seed", type = int, default = 42, help = "Random seed")
     parser.add_argument("--checkpoint_dir", type = str, default = "/content/checkpoints",
 				    	help = "Directory for model checkpoints")

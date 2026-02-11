@@ -200,7 +200,7 @@ def parse_args():
 	parser.add_argument("--num_workers", type = int, default = 2, help = "Number of data loading workers")
 
 	# Training
-	parser.add_argument("--epochs", type = int, default = 50, help = "Number of training epochs")
+	parser.add_argument("--epochs", type = int, default = 50, help = "Number of classifier training epochs")
 	parser.add_argument("--lr", type = float, default = 0.001, help = "Learning rate")
     parser.add_argument("--weight_decay", type = float, default = 1e-4, help = "Weight decay")
     parser.add_argument("--step_size", type = int, default = 15, help = "Scheduler step size")
@@ -208,8 +208,8 @@ def parse_args():
 
 	# Synthetic data augmentation
 	parser.add_argument("--synthetic_data_dir", type = str, default = None, help = "Synthetic data directory")
-    parser.add_argument("--synthetic_ratio", type = float, default = 1.0, help = "Ratio of synthetic / real data")
-    parser.add_argument("--data_fraction", type = float, default = 1.0, help = "Fraction of training data to use")
+    parser.add_argument("--use_synthetic", action = "store_true", help = "Augment training set with synthetic data")
+    parser.add_argument("--real_ratio", type = float, default = 1.0, help = "Fraction of real training data to use")
 
     # Output
     parser.add_argument("--results_dir", type = str, default = "/content/results/classification",
