@@ -186,7 +186,7 @@ class ClassificationTrainer:
 
 		# Save training results as a JSON file.
 		# Default path: ./results/classification/training_results.json.
-		results_path = os.path.join(self.args.results_dir, "training_results.json")
+		results_path = os.path.join(self.args.classification_dir, "training_results.json")
 		save_results(results, results_path)
         
         return results
@@ -206,13 +206,8 @@ def parse_args():
     parser.add_argument("--step_size", type = int, default = 15, help = "Scheduler step size")
     parser.add_argument("--gamma", type = float, default = 0.1, help = "Scheduler gamma")
 
-	# Synthetic data augmentation
-	parser.add_argument("--synthetic_data_dir", type = str, default = None, help = "Synthetic data directory")
-    parser.add_argument("--use_synthetic", action = "store_true", help = "Augment training set with synthetic data")
-    parser.add_argument("--real_ratio", type = float, default = 1.0, help = "Fraction of real training data to use")
-
     # Output
-    parser.add_argument("--results_dir", type = str, default = "/content/results/classification",
+    parser.add_argument("--classification_dir", type = str, default = "/content/results/classification",
 				    	help = "Directory for classification results")
     parser.add_argument("--checkpoint_dir", type = str, default = "/content/checkpoints",
 				    	help = "Directory for model checkpoints")
@@ -231,7 +226,7 @@ def main():
     np.random.seed(args.seed)
 
     # Create directories for classification results and model checkpoints
-	os.makedirs(args.results_dir, exist_ok = True)
+	os.makedirs(args.classification_dir, exist_ok = True)
     os.makedirs(args.checkpoint_dir, exist_ok = True)
 
 	train_loader, test_loader = get_fgvc_dataloaders(root_dir = args.data_root,

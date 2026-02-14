@@ -3,9 +3,11 @@ import json
 import argparse
 from typing import Dict, List, Tuple, Optional
 
-import numpy as np
 from tqdm import tqdm
 from PIL import Image
+
+import numpy as np
+from sklearn.metrics import f1_score
 
 import torch
 import torch.nn as nn
@@ -17,7 +19,7 @@ from torch.utils.data import Dataset, DataLoader, ConcatDataset
 
 # DataLoaders for FGVC Aircraft, ResNet classifier initialization and training,
 # and U-Net / classifier-free guided vector field for image generation.
-from utils import get_fgvc_dataloaders
+from utils import get_fgvc_dataloaders, save_results
 from classification import ClassificationTrainer, create_classifier
 from flow import EulerSimulator
 from flow.models import IsotropicGaussian, CFGVectorFieldODE, UNet
@@ -163,55 +165,108 @@ class SyntheticAugmentationEvaluator:
     """
     Evaluate classification performance with synthetic data augmentation.
     """
-	def __init__(self, base_data_dir: str, results_dir: str):
-		self.base_data_dir = base_data_dir
-		self.results_dir = results_dir
+	def __init__(self, args, guidance_scale: int):
+		self.args = args
+		self.guidance_scale = guidance_scale
+		self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-	def evaluate_baseline(self, model_path: str, test_loader: DataLoader) -> Dict:
+	def evaluate_model(self, model: nn.Module, test_loader: DataLoader) -> Dict:
 		"""
-		Evaluate performance of a trained baseline classifier on the FGVC Aircraft
-		test set.
+		Evaluate the performance of a trained ResNet classifier on the FGVC Aircraft
+		test set, using top-1 accuracy and macro-averaged F1 score (unweighted mean
+		of per-class F1, over all classes). The macro-F1 helps reveal systematic un-
+		derperformance on individual classes.
 		"""
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-        # Initialize the ResNet classifier, load trained weights, then set it to
-        # evaluation mode.
-        model = create_classifier(num_classes = 100).to(device)
-        state = torch.load(model_path, map_location = device)
-        model.load_state_dict(state["model_state_dict"])
-        model.eval()
+		model.eval()
 
         correct = 0
         total = 0
 
+        y_true = []
+        y_pred = []
+
 		with torch.no_grad():
 			for data, target in test_loader:
-				data, target = data.to(device), target.to(device)
+				data, target = data.to(self.device), target.to(self.device)
 				# Compute class logits for each sample in the batch.
 				output = model(data)
 				# Retrieve model predictions (highest scoring class index),
 				# discarding the logits themselves.
 				_, prediction = torch.max(output, 1)
+
+				# Append the prediction and ground truth
+	            y_true.extend(target.cpu().numpy())
+	            y_pred.extend(prediction.cpu().numpy())
+
 				total += target.size(0)
 				# Count the number of correct predictions in the batch.
 				correct += (prediction == target).sum().item()
 
+		# Compute the accuracy
         accuracy = 100.0 * correct / total
-        return {"accuracy": accuracy, "total_samples": total}
 
-    def run_low_data_experiments(self, real_ratios: List[float] = [0.1, 0.25, 0.5, 1.0]) -> Dict:
-		"""
-		TODO: Implement training the ResNet on 10% / 25% / 50% / 100% real
-		+ full synthetic (equivalent to 100% real trainval) data.
-		"""
-		raise NotImplementedError("Please implement SyntheticAugmentationEvaluator.run_low_data_experiments.")
+        # Compute the macro-averaged F1 score
+        f1 = f1_score(y_true, y_pred, average = "macro")
+        return {"accuracy": accuracy, "f1_macro": f1, "total_samples": total}
 
-    def compare_models(self, synthetic_data_dir: Dict[str, str]) -> Dict:
+	def evaluate_baseline(self, model_path: str, test_loader: DataLoader) -> None:
 		"""
-		TODO: Implement evaluation of the ResNet trained on different real
-		+ synthetic fractions.
+		Evaluate the performance of the trained baseline classifier on the FGVC
+		Aircraft test set, using top-1 accuracy and the macro-averaged F1 score.
 		"""
-		raise NotImplementedError("Please implement SyntheticAugmentationEvaluator.compare_models.")
+        # Initialize the ResNet classifier, load trained weights, then set it to
+        # evaluation mode.
+        model = create_classifier(num_classes = 100).to(self.device)
+        state = torch.load(model_path, map_location = self.device)
+        model.load_state_dict(state["model_state_dict"])
+
+        baseline_evaluation = self.evaluate_model(model, test_loader)
+	    print(f"Baseline Evaluation: {baseline_evaluation}")
+
+        baseline_eval_path = os.path.join(self.args.classification_dir, "baseline_evaluation.json")
+		save_results(baseline_evaluation, baseline_eval_path)
+
+    def run_low_data_experiments(self, real_ratios: List[float] = [0.1, 0.25, 0.5, 1.0]) -> None:
+		"""
+		Train the ResNet classifier on 10% / 25% / 50% / 100% real + full synthetic
+		(equivalent to 100% real trainval) data. Evaluate using top-1 accuracy and
+		macro-averaged F1.
+		"""
+		train_loader, test_loader = get_fgvc_dataloaders(root_dir = self.args.data_root,
+														 batch_size = self.args.batch_size,
+														 num_workers = self.args.num_workers)
+
+		for ratio in real_ratios:
+			subdirectory = os.path.join(self.args.augmentation_dir, f"real-{ratio}", f"w-{self.guidance_scale}")
+			os.makedirs(subdirectory, exist_ok = True)
+
+			synthetic_dir = os.path.join(self.args.synthetic_data_dir, f"w-{self.guidance_scale}")
+
+			unaugmented_loader = create_augmented_dataset(original_loader = train_loader,
+													      synthetic_dir = synthetic_dir,
+													      use_synthetic = False,
+													      real_ratio = ratio)
+
+			unaugmented_trainer = ClassificationTrainer(self.args)
+			unaugmented_results = unaugmented_trainer.train(unaugmented_loader, test_loader)
+			unaugmented_evaluation = self.evaluate_model(unaugmented_trainer.model, test_loader)
+			
+			augmented_loader = create_augmented_dataset(original_loader = train_loader,
+														synthetic_dir = synthetic_dir,
+														use_synthetic = True,
+														real_ratio = ratio)
+
+			augmented_trainer = ClassificationTrainer(self.args)
+			augmented_results = augmented_trainer.train(augmented_loader, test_loader)
+			augmented_evaluation = self.evaluate_model(augmented_trainer.model, test_loader)
+
+			print(f"Real Data Ratio: {ratio}, Guidance Scale: {self.guidance_scale}")
+			print(f"Unaugmented Evaluation: {unaugmented_evaluation}")
+			print(f"Augmented Evaluation: {augmented_evaluation}")
+
+			combined_evaluation = {"unaugmented": unaugmented_evaluation, "augmented": augmented_evaluation}
+			combined_eval_path = os.path.join(subdirectory, "combined_evaluation.json")
+			save_results(combined_evaluation, combined_eval_path)
 
 def create_augmented_dataset(original_loader: DataLoader,
 							 synthetic_dir: str,
@@ -261,18 +316,26 @@ def parse_args():
 
 	# Training
 	parser.add_argument("--epochs", type = int, default = 50, help = "Number of classifier training epochs")
-	parser.add_argument("--synthetic_data_dir", type = str, default = None, help = "Synthetic data directory")
-    parser.add_argument("--use_synthetic", action = "store_true", help = "Augment training set with synthetic data")
+	parser.add_argument("--lr", type = float, default = 0.001, help = "Learning rate")
+    parser.add_argument("--weight_decay", type = float, default = 1e-4, help = "Weight decay")
+    parser.add_argument("--step_size", type = int, default = 15, help = "Scheduler step size")
+    parser.add_argument("--gamma", type = float, default = 0.1, help = "Scheduler gamma")
+
+    # Synthetic data augmentation
+	parser.add_argument("--synthetic_data_dir", type = str, default = "/content/images", help = "Synthetic data directory")
     parser.add_argument("--real_ratio", type = float, default = 1.0, help = "Fraction of real training data to use")
 
 	# Output
-	parser.add_argument("--results_dir", type = str, default = "/content/results/augmentation",
+	parser.add_argument("--classification_dir", type = str, default = "/content/results/classification",
+				    	help = "Directory for classification results")
+	parser.add_argument("--augmentation_dir", type = str, default = "/content/results/augmentation",
 						help = "Directory for augmentation results")
 	parser.add_argument("--checkpoint_dir", type = str, default = "/content/checkpoints",
 						help = "Directory for model checkpoints")
+	parser.add_argument("--save_interval", type = int, default = 5, help = "Number of epochs between checkpoint saves")
 
-	# Experiments
-	parser.add_argument("--run_low_data", action = "store_true", help = "Run low-data experiments")
+	# General
+	parser.add_argument("--seed", type = int, default = 42, help = "Random seed")
 
 	return parser.parse_args()
 
@@ -280,12 +343,15 @@ def main():
 	args = parse_args()
 
 	# Create directory to store synthetic augmentation results
-	os.makedirs(args.results_dir, exist_ok = True)
+	os.makedirs(args.augmentation_dir, exist_ok = True)
 
-	# Initialize synthetic data evaluation
-	evaluator = SyntheticAugmentationEvaluator(args.data_root, args.results_dir)
+	# Set random seed
+    torch.manual_seed(args.seed)
+    np.random.seed(args.seed)
 
-	if args.run_low_data:
+	# Perform synthetic data evaluation for each guidance scale
+	for guidance_scale in (3.0, 5.0, 7.0):
+		evaluator = SyntheticAugmentationEvaluator(args, guidance_scale)
 		evaluator.run_low_data_experiments()
 
 if __name__ == "__main__":
