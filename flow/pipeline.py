@@ -22,14 +22,14 @@ from utils import get_fgvc_dataloaders
 class FlowMatchingPipeline:
 	def __init__(self):
 		self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-		
+
 		# Create output image directory
 		sample_dir = "/content/images"
 		os.makedirs(sample_dir, exist_ok = True)
 
 		# Initialize DataLoaders for the training and test sets
 		root_dir = "/content/data"
-	    self.train_loader, self.test_loader = get_fgvc_dataloaders(root_dir)
+		self.train_loader, self.test_loader = get_fgvc_dataloaders(root_dir)
 
 		# Initialize Gaussian conditional probability path to guide samples from
 		# an isotropic multivariate Gaussian to the data distribution.
@@ -61,39 +61,39 @@ class FlowMatchingPipeline:
 		num_classes = 100
 
 		for w in guidance_scales:
-		    # Create a classifier-free guided vector field with the specified
-		    # guidance scale, then simulate as an ODE.
-		    ode = CFGVectorFieldODE(self.unet, guidance_scale = w)
-		    simulator = EulerSimulator(ode)
+			# Create a classifier-free guided vector field with the specified
+			# guidance scale, then simulate as an ODE.
+			ode = CFGVectorFieldODE(self.unet, guidance_scale = w)
+			simulator = EulerSimulator(ode)
 
-		    # Create copies of each class label (0, ..., 99). Exclude the null
-		    # label from generated samples.
-		    y = torch.arange(num_classes, dtype = torch.int64).repeat_interleave(samples_per_class).to(self.device)
-		    num_samples = y.shape[0]
+			# Create copies of each class label (0, ..., 99). Exclude the null
+			# label from generated samples.
+			y = torch.arange(num_classes, dtype = torch.int64).repeat_interleave(samples_per_class).to(self.device)
+			num_samples = y.shape[0]
 
-		    # Draw samples from the isotropic Gaussian as p_noise.
-	        x0, _ = self.path.p_simple.sample(num_samples)
-	        ts = torch.linspace(0, 1, num_timesteps).view(1, -1, 1, 1, 1).expand(num_samples, -1, 1, 1, 1).to(self.device)
+			# Draw samples from the isotropic Gaussian as p_noise.
+			x0, _ = self.path.p_simple.sample(num_samples)
+			ts = torch.linspace(0, 1, num_timesteps).view(1, -1, 1, 1, 1).expand(num_samples, -1, 1, 1, 1).to(self.device)
 
-	        # Simulate for the given number of time steps and guidance scale,
-	        # returning the final state x1 and corresponding class labels y.
-	        # y is of shape (num_samples, ), while x1 has shape (num_samples,
-	        # 3, 224, 224). To filter for a class, create a mask using mask =
-	        # (y == class), then apply it using x1_class = x1[mask].
-		    x1 = simulator.simulate(x0, ts, y = y)
-		    samples[w] = (x1, y)
+			# Simulate for the given number of time steps and guidance scale,
+			# returning the final state x1 and corresponding class labels y.
+			# y is of shape (num_samples, ), while x1 has shape (num_samples,
+			# 3, 224, 224). To filter for a class, create a mask using mask =
+			# (y == class), then apply it using x1_class = x1[mask].
+			x1 = simulator.simulate(x0, ts, y = y)
+			samples[w] = (x1, y)
 
-	    return samples
+		return samples
 
-	def postprocessing(self, samples: Dict[float, torch.Tensor])
+	def postprocessing(self, samples: Dict[float, torch.Tensor]):
 		# Transform to remove ImageNet normalization
-    	denorm = transforms.Normalize(mean = [-0.485/0.229, -0.456/0.224, -0.406/0.225],
-						    		  std = [1/0.229, 1/0.224, 1/0.225])
+		denorm = transforms.Normalize(mean = [-0.485/0.229, -0.456/0.224, -0.406/0.225],
+									  std = [1/0.229, 1/0.224, 1/0.225])
 
 		# Remove ImageNet normalization and clamp values to [0, 1] range.
-    	for w, (x1, y) in samples.items():
-    		x1 = denorm(x1).clamp(0, 1)
-    		samples[w] = (x1, y)
+		for w, (x1, y) in samples.items():
+			x1 = denorm(x1).clamp(0, 1)
+			samples[w] = (x1, y)
 			num_samples = y.shape[0]
 
 			for index in range(num_samples):
@@ -119,21 +119,21 @@ class FlowMatchingPipeline:
 
 def main():
 	parser = argparse.ArgumentParser(description = "Flow Matching Pipeline", add_help = False)
-    parser.add_argument("--num_samples", type = int, default = 67, help = "Number of samples to generate")
-    parser.add_argument("--seed", type = int, default = 42, help = "Random seed")
-    parser.add_argument("--checkpoint_dir", type = str, default = "/content/checkpoints",
-				    	help = "Directory for model checkpoints")
-    
-    args = parser.parse_args()
+	parser.add_argument("--num_samples", type = int, default = 67, help = "Number of samples to generate")
+	parser.add_argument("--seed", type = int, default = 42, help = "Random seed")
+	parser.add_argument("--checkpoint_dir", type = str, default = "/content/checkpoints",
+						help = "Directory for model checkpoints")
 
-    # Set random seed
-    torch.manual_seed(args.seed)
+	args = parser.parse_args()
 
-    # Initialize training and inference
-    flow = FlowMatchingPipeline()
+	# Set random seed
+	torch.manual_seed(args.seed)
 
-    # Generate samples using classifier-free guidance conditional flow matching,
-    # then save the generated samples. Persist the U-Net weights as a checkpoint.
+	# Initialize training and inference
+	flow = FlowMatchingPipeline()
+
+	# Generate samples using classifier-free guidance conditional flow matching,
+	# then save the generated samples. Persist the U-Net weights as a checkpoint.
 	samples = flow.generate_samples(samples_per_class = args.num_samples)
 	flow.postprocessing(samples)
 	flow.save_checkpoint(args.checkpoint_dir)

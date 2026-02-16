@@ -76,7 +76,7 @@ class Simulator(ABC):
         return torch.stack(xs, dim = 1)
 
 class EulerSimulator(Simulator):
-	def __init__(self, ode: "ODE"):
+    def __init__(self, ode: "ODE"):
         self.ode = ode
 
     def step(self, xt: torch.Tensor, t: torch.Tensor, h: torch.Tensor, **kwargs):
