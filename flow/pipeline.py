@@ -1,4 +1,5 @@
 import os
+import gc
 import argparse
 from typing import Tuple, Dict
 from tqdm import tqdm
@@ -50,62 +51,59 @@ class FlowMatchingPipeline:
 	def generate_samples(self,
 						 samples_per_class: int = 67,
 						 guidance_scales: Tuple[float, ...] = (3.0, 5.0, 7.0),
-						 num_timesteps: int = 100) -> Dict[float, Tuple[torch.Tensor, torch.Tensor]]:
+						 num_timesteps: int = 100):
 
 		# Train the U-Net for the specified number of epochs and learning rate.
 		self.trainer.train(num_epochs = 300, device = self.device, lr = 1e-4, batch_size = 32)
-		
-		# Create a samples dictionary, keyed by the guidance scale w, to store
-		# generated samples.
-		samples = {}
-		num_classes = 100
 
+		# Clear memory post-training
+		torch.cuda.empty_cache()
+		gc.collect()
+		
+		num_classes = 100
 		for w in guidance_scales:
 			# Create a classifier-free guided vector field with the specified
 			# guidance scale, then simulate as an ODE.
 			ode = CFGVectorFieldODE(self.unet, guidance_scale = w)
 			simulator = EulerSimulator(ode)
 
-			# Create copies of each class label (0, ..., 99). Exclude the null
-			# label from generated samples.
-			y = torch.arange(num_classes, dtype = torch.int64).repeat_interleave(samples_per_class).to(self.device)
-			num_samples = y.shape[0]
+			# Iterate over each class label (0, ..., 99), excluding the null
+			# label. Generate one sample per class at a time to avoid out of
+			# memory errors.
+			for class_label in range(num_classes):
+				for sample_id in range(samples_per_class):
+					y = torch.tensor([class_label], dtype = torch.int64).to(self.device)
 
-			# Draw samples from the isotropic Gaussian as p_noise.
-			x0, _ = self.path.p_simple.sample(num_samples)
-			ts = torch.linspace(0, 1, num_timesteps).view(1, -1, 1, 1, 1).expand(num_samples, -1, 1, 1, 1).to(self.device)
+					# Draw samples from the isotropic Gaussian as p_noise.
+					x0, _ = self.path.p_simple.sample(1)
+					ts = torch.linspace(0, 1, num_timesteps).view(1, -1, 1, 1, 1).expand(1, -1, 1, 1, 1).to(self.device)
 
-			# Simulate for the given number of time steps and guidance scale,
-			# returning the final state x1 and corresponding class labels y.
-			# y is of shape (num_samples, ), while x1 has shape (num_samples,
-			# 3, 224, 224). To filter for a class, create a mask using mask =
-			# (y == class), then apply it using x1_class = x1[mask].
-			x1 = simulator.simulate(x0, ts, y = y)
-			samples[w] = (x1, y)
+					# Simulate for the given number of time steps and guidance scale.
+					x1 = simulator.simulate(x0, ts, y = y)
 
-		return samples
+					# Postprocess and save sample.
+					self.postprocessing(x1, w, class_label, sample_id)
 
-	def postprocessing(self, samples: Dict[float, torch.Tensor]):
-		# Transform to remove ImageNet normalization
+					# Delete tensors and clear memory.
+					del x0, x1, ts, y
+					torch.cuda.empty_cache()
+					gc.collect()
+
+	def postprocessing(self, sample: torch.Tensor, guidance_scale: float, class_label: int, sample_id: int):
+		# Remove ImageNet normalization and clamp values to [0, 1] range.
 		denorm = transforms.Normalize(mean = [-0.485/0.229, -0.456/0.224, -0.406/0.225],
 									  std = [1/0.229, 1/0.224, 1/0.225])
+		sample = denorm(sample).clamp(0, 1)
 
-		# Remove ImageNet normalization and clamp values to [0, 1] range.
-		for w, (x1, y) in samples.items():
-			x1 = denorm(x1).clamp(0, 1)
-			samples[w] = (x1, y)
-			num_samples = y.shape[0]
+		# Create directory to store the generated sample. Organize based on the
+		# guidance scale and class label.
+		directory = f"/content/images/w-{guidance_scale}/class-{class_label}"
+		os.makedirs(directory, exist_ok = True)
 
-			for index in range(num_samples):
-				image = x1[index]
-				class_label = y[index].item()
-				# Organize images based on the guidance scale and class label
-				directory = f"/content/images/w-{self.guidance_scale}/class-{class_label}"
-				os.makedirs(directory, exist_ok = True)
-
-				file_name = f"image-{index}_w-{w}_class-{class_label:02d}.png"
-				file_path = os.path.join(directory, file_name)
-				save_image(image, fp = file_path)
+		# Save the image to disk.
+		file_name = f"image-{sample_id}_w-{guidance_scale}_class-{class_label:02d}.png"
+		file_path = os.path.join(directory, file_name)
+		save_image(sample, fp = file_path)
 
 	def save_checkpoint(self, checkpoint_dir):
 		"""
@@ -134,8 +132,7 @@ def main():
 
 	# Generate samples using classifier-free guidance conditional flow matching,
 	# then save the generated samples. Persist the U-Net weights as a checkpoint.
-	samples = flow.generate_samples(samples_per_class = args.num_samples)
-	flow.postprocessing(samples)
+	flow.generate_samples(samples_per_class = args.num_samples)
 	flow.save_checkpoint(args.checkpoint_dir)
 
 if __name__ == "__main__":
