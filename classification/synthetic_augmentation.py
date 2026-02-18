@@ -1,4 +1,5 @@
 import os
+import gc
 import json
 import argparse
 from typing import Dict, List, Tuple, Optional
@@ -89,23 +90,24 @@ class SyntheticDataGenerator:
 	    self.model = None
 
 	def load_model(self):
-		self.model = UNet(channels = [32, 64, 128, 256],
+		self.model = UNet(channels = [32, 64, 128, 256, 512],
 						  num_residual_layers = 2,
 						  t_embed_dim = 128,
-						  y_embed_dim = 128)
+						  y_embed_dim = 128).to(self.device)
+		if torch.cuda.device_count() > 1:
+			self.model = nn.DataParallel(self.model)
 
-	    if os.path.exists(self.model_path):
-            state = torch.load(self.model_path, map_location = self.device)
-            self.model.load_state_dict(state["model_state_dict"])
-            self.model.to(self.device)
-	        self.model.eval()
-        else:
-		    print(f"Warning: Model parameters not found at {self.model_path}.")
+		if os.path.exists(self.model_path):
+			state = torch.load(self.model_path, map_location = self.device)
+			self.model.load_state_dict(state["model_state_dict"])
+			self.model.eval()
+		else:
+			print(f"Warning: Model parameters not found at {self.model_path}.")
 
     def denormalize(self, images: torch.Tensor) -> torch.Tensor:
     	"""
     	Helper function to remove ImageNet normalization and clamp tensor values
-    	to the [0, 1] range for generated images.
+    	to the [0, 1] range for one or more images.
     	"""
     	denorm = transforms.Normalize(mean = [-0.485/0.229, -0.456/0.224, -0.406/0.225],
 						    		  std = [1/0.229, 1/0.224, 1/0.225])
@@ -116,14 +118,15 @@ class SyntheticDataGenerator:
         """
         Generate a batch of synthetic images for a given class.
         """
-        if self.model is None:
-	        self.load_model()
+		if self.model is None:
+			self.load_model()
 
         ode = CFGVectorFieldODE(self.model, guidance_scale = self.guidance_scale)
         simulator = EulerSimulator(ode)
 
         y = torch.tensor([class_label], dtype = torch.int64).repeat_interleave(batch_size).to(self.device)
         x0, _ = IsotropicGaussian([3, 224, 224]).sample(batch_size)
+        x0 = x0.to(self.device)
 	    ts = torch.linspace(0, 1, num_timesteps).view(1, -1, 1, 1, 1).expand(batch_size, -1, 1, 1, 1).to(self.device)
 	    x1 = simulator.simulate(x0, ts, y = y)
 
@@ -134,32 +137,35 @@ class SyntheticDataGenerator:
     	"""
     	Generate a complete synthetic dataset at a given guidance scale.
     	"""
-        if self.model is None:
+		if self.model is None:
 			self.load_model()
 
-    	num_classes = 100
-    	ode = CFGVectorFieldODE(self.model, guidance_scale = self.guidance_scale)
-	    simulator = EulerSimulator(ode)
-	    
-	    y = torch.arange(num_classes, dtype = torch.int64).repeat_interleave(samples_per_class).to(self.device)
-	    num_samples = y.shape[0]
+		num_classes = 100
+		ode = CFGVectorFieldODE(self.model, guidance_scale = self.guidance_scale)
+		simulator = EulerSimulator(ode)
 
-	    x0, _ = IsotropicGaussian([3, 224, 224]).sample(num_samples)
-        ts = torch.linspace(0, 1, num_timesteps).view(1, -1, 1, 1, 1).expand(num_samples, -1, 1, 1, 1).to(self.device)
-        x1 = simulator.simulate(x0, ts, y = y)
-        x1 = self.denormalize(x1)
-
-		for index in range(num_samples):
-			image = x1[index]
-			class_label = y[index].item()
+		for class_label in range(num_classes):
 			# Create directory to store the generated images based on the guidance
 			# scale and class label
 			directory = f"/content/images/w-{self.guidance_scale}/class-{class_label}"
 			os.makedirs(directory, exist_ok = True)
+			for sample_id in range(samples_per_class):
+				y = torch.tensor([class_label], dtype = torch.int64).to(self.device)
 
-			file_name = f"image-{index}_w-{w}_class-{class_label:02d}.png"
-			file_path = os.path.join(directory, file_name)
-			save_image(image, fp = file_path)
+				x0, _ = IsotropicGaussian([3, 224, 224]).sample(1)
+				x0 = x0.to(self.device)
+				ts = torch.linspace(0, 1, num_timesteps).view(1, -1, 1, 1, 1).expand(1, -1, 1, 1, 1).to(self.device)
+				x1 = simulator.simulate(x0, ts, y = y)
+				x1 = self.denormalize(x1)
+
+				file_name = f"image-{sample_id}_w-{self.guidance_scale}_class-{class_label:02d}.png"
+				file_path = os.path.join(directory, file_name)
+				save_image(x1, fp = file_path)
+
+				# Delete tensors and clear memory.
+				del x0, x1, ts, y
+				torch.cuda.empty_cache()
+				gc.collect()
 
 class SyntheticAugmentationEvaluator:
     """
@@ -216,9 +222,11 @@ class SyntheticAugmentationEvaluator:
 		"""
         # Initialize the ResNet classifier, load trained weights, then set it to
         # evaluation mode.
-        model = create_classifier(num_classes = 100).to(self.device)
-        state = torch.load(model_path, map_location = self.device)
-        model.load_state_dict(state["model_state_dict"])
+		model = create_classifier(num_classes = 100).to(self.device)
+		if torch.cuda.device_count() > 1:
+			model = nn.DataParallel(model)
+		state = torch.load(model_path, map_location = self.device)
+		model.load_state_dict(state["model_state_dict"])
 
         baseline_evaluation = self.evaluate_model(model, test_loader)
 	    print(f"Baseline Evaluation: {baseline_evaluation}")
@@ -303,7 +311,8 @@ def create_augmented_dataset(original_loader: DataLoader,
 						    	 batch_size = original_loader.batch_size,
 						    	 shuffle = True,
 						    	 num_workers = original_loader.num_workers,
-						    	 pin_memory = True)
+						    	 pin_memory = True,
+						    	 persistent_workers = True)
 	return modified_loader
 
 def parse_args():

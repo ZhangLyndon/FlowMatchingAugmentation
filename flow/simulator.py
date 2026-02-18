@@ -42,7 +42,7 @@ class Simulator(ABC):
             States at the final time ts[:, -1]
         """
         num_timesteps = ts.shape[1]
-        for t_idx in tqdm(range(num_timesteps - 1)):
+        for t_idx in range(num_timesteps - 1):
             t = ts[:, t_idx]
             h = ts[:, t_idx + 1] - ts[:, t_idx]
             x = self.step(x, t, h, **kwargs)
@@ -68,7 +68,7 @@ class Simulator(ABC):
         """
         xs = [x.clone()]
         num_timesteps = ts.shape[1]
-        for t_idx in tqdm(range(num_timesteps - 1)):
+        for t_idx in range(num_timesteps - 1):
             t = ts[:, t_idx]
             h = ts[:, t_idx + 1] - ts[:, t_idx]
             x = self.step(x, t, h, **kwargs)

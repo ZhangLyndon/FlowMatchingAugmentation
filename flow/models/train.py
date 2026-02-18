@@ -44,7 +44,7 @@ class Trainer(ABC):
         """
         return torch.optim.Adam(self.model.parameters(), lr = lr)
 
-    def train(self, num_epochs: int, device: torch.device, lr: float = 1e-3, **kwargs) -> torch.Tensor:
+    def train(self, num_epochs: int, device: torch.device, lr: float = 5e-5, **kwargs) -> torch.Tensor:
         """
         Train the model for the specified number of epochs with the given lear-
         ning rate.
@@ -54,11 +54,9 @@ class Trainer(ABC):
         size_bytes = model_size_bytes(self.model)
         print(f"Model Size: {size_bytes / MiB:.3f} MiB")
 
-        # Move the model to the GPU if available, retrieve the optimizer, and
-        # set the model to training mode (note that this must be done before
-        # starting the training loop).
+        # Retrieve the optimizer and set the model to training mode (note that
+        # this must be done before starting the training loop).
         self.device = device
-        self.model.to(device)
         opt = self.get_optimizer(lr)
         self.model.train()
 

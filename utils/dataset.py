@@ -50,13 +50,15 @@ def get_fgvc_dataloaders(root_dir: str, batch_size: int = 32, image_size: int = 
                               batch_size = batch_size,
                               shuffle = True,
                               num_workers = num_workers,
-                              pin_memory = True)
+                              pin_memory = True,
+                              persistent_workers = True)
     
     test_loader = DataLoader(test_dataset,
                              batch_size = batch_size,
                              shuffle = False,
                              num_workers = num_workers,
-                             pin_memory = True)
+                             pin_memory = True,
+                             persistent_workers = True)
 
     return train_loader, test_loader
 

@@ -23,6 +23,9 @@ class ClassificationTrainer:
 		self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 		self.model = create_classifier(num_classes = 100).to(self.device)
+		if torch.cuda.device_count() > 1:
+			self.model = nn.DataParallel(self.model)
+            
 		self.optimizer = optim.Adam(self.model.parameters(), lr = args.lr, weight_decay = args.weight_decay)
 		self.scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size = args.step_size, gamma = args.gamma)
 

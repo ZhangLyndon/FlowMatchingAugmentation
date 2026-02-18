@@ -71,7 +71,10 @@ if __name__ == "__main__":
 	"""
 	# Initialize the model with the default number of classes (100), and report
 	# the total number of trainable parameters.
-	model = create_classifier(num_classes = 100)
+	device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+	model = create_classifier(num_classes = 100).to(device)
+	if torch.cuda.device_count() > 1:
+		model = nn.DataParallel(model)
 	print(f"Total Parameters: {sum(p.numel() for p in model.parameters())}")
 
 	# Create a batch of (i.e., 2) 3-channel 224 x 224 images, pass them through

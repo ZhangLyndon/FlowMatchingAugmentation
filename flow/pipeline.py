@@ -40,11 +40,14 @@ class FlowMatchingPipeline:
 													   alpha = LinearAlpha(),
 													   beta = LinearBeta()).to(self.device)
 
-		# Initialize the U-Net and CFG (classifier-free guidance) trainer
-		self.unet = UNet(channels = [32, 64, 128, 256],
+		# Initialize the U-Net and CFG (classifier-free guidance) trainer. Move
+		# the model to the GPU if available.
+		self.unet = UNet(channels = [32, 64, 128, 256, 512],
 						 num_residual_layers = 2,
 						 t_embed_dim = 128,
-						 y_embed_dim = 128)
+						 y_embed_dim = 128).to(self.device)
+		if torch.cuda.device_count() > 1:
+			self.unet = nn.DataParallel(self.unet)
 
 		self.trainer = CFGTrainer(path = self.path, model = self.unet, eta = 0.1, null_label = 100)
 	
@@ -54,7 +57,7 @@ class FlowMatchingPipeline:
 						 num_timesteps: int = 100):
 
 		# Train the U-Net for the specified number of epochs and learning rate.
-		self.trainer.train(num_epochs = 300, device = self.device, lr = 1e-4, batch_size = 32)
+		self.trainer.train(num_epochs = 10000, device = self.device, lr = 5e-5, batch_size = 32)
 
 		# Clear memory post-training
 		torch.cuda.empty_cache()
