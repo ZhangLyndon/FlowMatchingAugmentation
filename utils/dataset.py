@@ -10,8 +10,8 @@ from PIL import Image
 
 def remove_banner(image: Image.Image) -> Image.Image:
     """
-    Removes the bottom 20 pixels from an image represented by a PIL Image.
-    Assumes image is a tensor of shape (channels, height, width).
+    Removes the bottom 20 pixels from a PIL Image. This occurs before resizing
+    to ensure the banner is removed at the original (dataset) resolution.
     """
     width, height = image.size
     return image.crop((0, 0, width, height - 20))
@@ -24,8 +24,9 @@ def get_fgvc_dataloaders(root_dir: str, batch_size: int = 32, image_size: int = 
     # then crop the image at a random location to prevent memorization. Add a
     # random horizontal flip to the training set, to enable better generaliza-
     # tion. Normalization statistics reflect per-channel values from ImageNet.
+    canvas_size = int(image_size * 1.15)
     train_transform = transforms.Compose([transforms.Lambda(remove_banner),
-                                          transforms.Resize(image_size + 32),
+                                          transforms.Resize(canvas_size),
                                           transforms.RandomCrop(image_size), 
                                           transforms.RandomHorizontalFlip(),
                                           transforms.ToTensor(),
@@ -35,7 +36,7 @@ def get_fgvc_dataloaders(root_dir: str, batch_size: int = 32, image_size: int = 
     # For the test set, cropping the image at the center helps ensure determi-
     # nistic evaluation.
     test_transform = transforms.Compose([transforms.Lambda(remove_banner),
-                                         transforms.Resize(image_size + 32),
+                                         transforms.Resize(canvas_size),
                                          transforms.CenterCrop(image_size),
                                          transforms.ToTensor(),
                                          transforms.Normalize(mean = [0.485, 0.456, 0.406],
