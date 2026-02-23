@@ -45,10 +45,11 @@ class UNet(ConditionalVectorField):
         ciency.
         """
         super().__init__()
-        # Initial convolution transforms RGB inputs (3 channels) into feature maps,
-        # while preserving spatial resolution. Must precede normalization / activa-
-        # tion, as raw pixels lack structured features to normalize.
-        self.init_conv = nn.Sequential(nn.Conv2d(3, channels[0], kernel_size = 3, padding = 1),
+        # Initial convolution transforms grayscale inputs (1 channel) into fea-
+        # ture maps, while preserving spatial resolution. Must precede normali-
+        # zation / activation, as raw pixels lack structured features to norma-
+        # lize.
+        self.init_conv = nn.Sequential(nn.Conv2d(1, channels[0], kernel_size = 3, padding = 1),
                                        nn.BatchNorm2d(channels[0]),
                                        nn.SiLU())
 
@@ -56,10 +57,10 @@ class UNet(ConditionalVectorField):
         # poral position.
         self.time_embedder = FourierEncoder(t_embed_dim)
 
-        # Class embedding encodes class labels (0, ..., 99, null) as continuous
+        # Class embedding encodes class labels (0, ..., 9, null) as continuous
         # vectors for conditional generation.
-        self.y_embedder = nn.Embedding(num_embeddings = 101, embedding_dim = y_embed_dim)
-
+        self.y_embedder = nn.Embedding(num_embeddings = 11, embedding_dim = y_embed_dim)
+        
         # Initialize encoders, a midcoder, and matching (symmetric) set of de-
         # coders to downsample and learn higher-level abstract features, increa-
         # sing the number of channels, before generating the image from the fea-
@@ -75,9 +76,9 @@ class UNet(ConditionalVectorField):
         self.decoders = nn.ModuleList(reversed(decoders))
         self.midcoder = Midcoder(channels[-1], num_residual_layers, t_embed_dim, y_embed_dim)
 
-        # Final convolution produces 3-channel vector field prediction from de-
+        # Final convolution produces 1-channel vector field prediction from de-
         # coded features.
-        self.final_conv = nn.Conv2d(channels[0], 3, kernel_size = 3, padding = 1)
+        self.final_conv = nn.Conv2d(channels[0], 1, kernel_size = 3, padding = 1)
 
     def forward(self, x: torch.Tensor, t: torch.Tensor, y: torch.Tensor):
         """
@@ -86,17 +87,17 @@ class UNet(ConditionalVectorField):
 
         Parameters
         ----------
-        x : torch.Tensor, shape (batch_size, 3, 224, 224)
-            Batch of images with 3 channels and 224 × 224 resolution.
+        x : torch.Tensor, shape (batch_size, 1, 32, 32)
+            Batch of images with 1 channel and 32 × 32 resolution.
         t : torch.Tensor, shape (batch_size, 1, 1, 1)
             Continuous time points in [0, 1) corresponding to each sample.
         y : torch.Tensor, shape (batch_size, )
-            Class labels (0, ..., 99, null) used to condition the network and
+            Class labels (0, ..., 9, null) used to condition the network and
             guide generation.
 
         Returns
         -------
-        u_t_theta: torch.Tensor, shape (batch_size, 3, 224, 224)
+        u_t_theta: torch.Tensor, shape (batch_size, 1, 32, 32)
             Neural network approximation u_t^theta(x|y) of the conditional vec-
             tor field u_t(x|z).
         """
@@ -107,7 +108,7 @@ class UNet(ConditionalVectorField):
         y_embed = self.y_embedder(y)
 
         # Perform the initial convolution.
-        # x: (batch_size, channels[0], 224, 224)
+        # x: (batch_size, channels[0], 32, 32)
         x = self.init_conv(x)
 
         residuals = []
@@ -134,6 +135,6 @@ class UNet(ConditionalVectorField):
             x = decoder(x, t_embed, y_embed)
 
         # Final convolution maps features back to the input resolution, producing
-        # the predicted conditional vector field (batch_size, 3, 224, 224).
+        # the predicted conditional vector field (batch_size, 1, 32, 32).
         x = self.final_conv(x)
         return x

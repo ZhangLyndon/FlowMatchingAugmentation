@@ -4,47 +4,32 @@ from typing import Tuple, Optional
 import torch
 from torchvision import transforms
 from torch.utils.data import DataLoader
-from torchvision.datasets import FGVCAircraft
+from torchvision.datasets import FashionMNIST
 
-from PIL import Image
-
-def remove_banner(image: Image.Image) -> Image.Image:
+def get_dataloaders(root_dir: str, batch_size: int = 32, image_size: int = 224, num_workers: int = 2):
     """
-    Removes the bottom 20 pixels from a PIL Image. This occurs before resizing
-    to ensure the banner is removed at the original (dataset) resolution.
+    Create data loaders for the Fashion MNIST dataset, to be used with the
+    ResNet-50 classifier.
     """
-    width, height = image.size
-    return image.crop((0, 0, width, height - 20))
-
-def get_fgvc_dataloaders(root_dir: str, batch_size: int = 32, image_size: int = 224, num_workers: int = 2):
-    """
-    Create data loaders for the FGVC Aircraft dataset.
-    """
-    # Remove the banner at the bottom displaying copyright information. Resize,
-    # then crop the image at a random location to prevent memorization. Add a
-    # random horizontal flip to the training set, to enable better generaliza-
-    # tion. Normalization statistics reflect per-channel values from ImageNet.
-    canvas_size = int(image_size * 1.15)
-    train_transform = transforms.Compose([transforms.Lambda(remove_banner),
-                                          transforms.Resize(canvas_size),
-                                          transforms.RandomCrop(image_size), 
+    # Resize, then add a random horizontal flip to the training set, to enable
+    # better generalization. Normalization statistics reflect per-channel va-
+    # lues from ImageNet.
+    train_transform = transforms.Compose([transforms.Resize(image_size),
                                           transforms.RandomHorizontalFlip(),
                                           transforms.ToTensor(),
+                                          transforms.Lambda(lambda x: x.repeat(3, 1, 1)),
                                           transforms.Normalize(mean = [0.485, 0.456, 0.406],
                                                                std = [0.229, 0.224, 0.225])])
-    
-    # For the test set, cropping the image at the center helps ensure determi-
-    # nistic evaluation.
-    test_transform = transforms.Compose([transforms.Lambda(remove_banner),
-                                         transforms.Resize(canvas_size),
-                                         transforms.CenterCrop(image_size),
+
+    test_transform = transforms.Compose([transforms.Resize(image_size),
                                          transforms.ToTensor(),
+                                         transforms.Lambda(lambda x: x.repeat(3, 1, 1)),
                                          transforms.Normalize(mean = [0.485, 0.456, 0.406],
                                                               std = [0.229, 0.224, 0.225])])
 
     # Create training and test sets
-    train_dataset = FGVCAircraft(root_dir, split = "trainval", download = True, transform = train_transform)
-    test_dataset = FGVCAircraft(root_dir, split = "test", download = True, transform = test_transform)
+    train_dataset = FashionMNIST(root_dir, train = True, download = True, transform = train_transform)
+    test_dataset = FashionMNIST(root_dir, train = False, download = True, transform = test_transform)
 
     # Create data loaders
     train_loader = DataLoader(train_dataset,
@@ -66,7 +51,7 @@ def get_fgvc_dataloaders(root_dir: str, batch_size: int = 32, image_size: int = 
 if __name__ == "__main__":
     # Test the data loaders
     root_dir = "/content/data"
-    train_loader, test_loader = get_fgvc_dataloaders(root_dir)
+    train_loader, test_loader = get_dataloaders(root_dir)
 
     print(f"Training Set Size: {len(train_loader.dataset)}")
     print(f"Test Set Size: {len(test_loader.dataset)}")

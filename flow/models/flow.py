@@ -50,7 +50,7 @@ class ConditionalVectorField(nn.Module, ABC):
         pass
 
 class CFGVectorFieldODE(ODE):
-    def __init__(self, net: ConditionalVectorField, guidance_scale: float = 1.0, null_label: int = 100):
+    def __init__(self, net: ConditionalVectorField, guidance_scale: float = 1.0, null_label: int = 10):
         self.net = net
         self.guidance_scale = guidance_scale
         self.null_label = null_label

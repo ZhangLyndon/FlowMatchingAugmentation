@@ -116,7 +116,7 @@ def load_results(filepath):
     with open(filepath, "r") as f:
         return json.load(f)
 
-def calculate_classification_metrics(predictions, targets, num_classes = 100):
+def calculate_classification_metrics(predictions, targets, num_classes = 10):
     """
     Calculate classification metrics, such as top 1 / 5 and per-class accuracy.
     

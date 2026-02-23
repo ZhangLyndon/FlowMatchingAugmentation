@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader
+from torchvision import datasets, transforms
 
 from abc import ABC, abstractmethod
 from typing import Optional, Tuple, List
@@ -200,24 +200,30 @@ class IsotropicGaussian(nn.Module, Sampleable):
         """
         return self.std * torch.randn(num_samples, *self.shape).to(self.dummy.device), None
 
-class FGVCSampler(nn.Module, Sampleable):
+class Sampler(nn.Module, Sampleable):
     """
-    Wrapper around the FGVC Aircraft dataset that enables random sampling of
+    Wrapper around the Fashion MNIST dataset that enables random sampling of
     image-label pairs.
     """
-    def __init__(self, train_loader: DataLoader):
+    def __init__(self):
         """
-        Initialize FGVC Aircraft training set with preprocessing transforms.
+        Initialize Fashion MNIST training set with preprocessing transforms.
         """
         super().__init__()
-        # Load the DataLoader for the FGVC Aircraft training set.
-        self.train_loader = train_loader
+        # Load the Fashion MNIST training split with the following preprocessing
+        # transforms: upscale each image to 32 x 32 pixels, convert to PyTorch
+        # tensors and rescale pixel intensities from [0, 255] to [0, 1], then
+        # normalize pixel intensities to [-1, 1].
+        self.dataset = datasets.FashionMNIST(root = "./data", train = True, download = True,
+                                             transform = transforms.Compose([transforms.Resize((32, 32)),
+                                                                             transforms.ToTensor(),
+                                                                             transforms.Normalize((0.5, ), (0.5, ))]))
         # Dummy tensor used to track the module's computational device.
         self.dummy = nn.Buffer(torch.zeros(1))
 
     def sample(self, num_samples: int) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         """
-        Draw a random subset of samples from the FGVC training set.
+        Draw a random subset of samples from the Fashion MNIST training set.
 
         Parameters
         ----------
@@ -227,36 +233,24 @@ class FGVCSampler(nn.Module, Sampleable):
         Returns
         -------
         samples : torch.Tensor, shape (batch_size, channels, height, width)
-            Batch of images from the FGVC Aircraft training set, with pixel values
-            normalized to ImageNet statistics.
+            Batch of images from the Fashion MNIST training set, with pixel
+            values normalized to ImageNet statistics.
         labels : torch.Tensor, shape (batch_size, label_dim)
-            Integer class labels (0-99) for each sample.
+            Integer class labels (0-9) for each sample.
         """
-        dataset_size = len(self.train_loader.dataset)
+        dataset_size = len(self.dataset)
         if num_samples > dataset_size:
             raise ValueError(f"num_samples exceeds dataset size: {dataset_size}")
         
-        samples_list, labels_list = [], []
-        count = 0
-
-        for images, labels in self.train_loader:
-            needed = num_samples - count
-            batch_size = images.size(0)
-
-            if batch_size <= needed:
-                samples_list.append(images)
-                labels_list.append(labels)
-                count += batch_size
-            else:
-                samples_list.append(images[:needed])
-                labels_list.append(labels[:needed])
-                count += needed
-
-            if count >= num_samples:
-                break
-
-        samples = torch.cat(samples_list).to(self.dummy.device)
-        labels = torch.cat(labels_list).to(dtype = torch.int64, device = self.dummy.device)
+        # Generate a random permutation of sample indices
+        indices = torch.randperm(len(self.dataset))[:num_samples]
+        # Each dataset element is an (image, label) pair; separate and collect
+        # them.
+        samples, labels = zip(*[self.dataset[i] for i in indices])
+        # Stack samples and labels into new tensors, and move to the module's
+        # device
+        samples = torch.stack(samples).to(self.dummy)
+        labels = torch.tensor(labels, dtype = torch.int64).to(self.dummy.device)
         return samples, labels
 
 class GaussianConditionalProbabilityPath(ConditionalProbabilityPath):

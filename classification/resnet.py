@@ -1,21 +1,22 @@
 import torch
 import torch.nn as nn
 import torchvision
+from torchvision.models import resnet50, ResNet50_Weights
 from typing import Optional
 
 class ResNetClassifier(nn.Module):
 	"""
-	ResNet-50 classifier for manufacturer / family / variant classification with
-	the FGVC Aircraft dataset.
+	ResNet-50 classifier for clothing item classification with the Fashion MNIST
+	dataset.
 	"""
-	def __init__(self, num_classes: int = 100, dropout_rate: float = 0.5):
+	def __init__(self, num_classes: int = 10, dropout_rate: float = 0.5):
 		"""
 		Initialize a ResNet-50 classifier.
 
 		Parameters
 		----------
 		num_classes : int, optional
-			Number of classes in the dataset. Defaults to 100.
+			Number of classes in the dataset. Defaults to 10.
 		dropout_rate: float, optional
 			Probability of zeroing a tensor element in the final fully-connected
 			layer. Defaults to 0.5.
@@ -24,25 +25,25 @@ class ResNetClassifier(nn.Module):
 
 		# Load ResNet-50, pretrained on ImageNet, with default (best available)
 		# weights.
-        self.backbone = torchvision.models.resnet50(weights = ResNet50_Weights.DEFAULT)
+		self.backbone = resnet50(weights = ResNet50_Weights.DEFAULT)
 
         # Replace the final fully connected classification layer in the pre-
         # trained ResNet backbone. Retrieve the number of input dimensions,
         # add a dropout layer to prevent overfitting, then apply an affine
         # transformation to the number of output classes.
-	    feature_dim = self.backbone.fc.in_features
-        self.backbone.fc = nn.Sequential(nn.Dropout(dropout_rate),
+		feature_dim = self.backbone.fc.in_features
+		self.backbone.fc = nn.Sequential(nn.Dropout(dropout_rate),
 							        	 nn.Linear(feature_dim, num_classes))
 
 		self.num_classes = num_classes
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-    	"""
-    	Pass input images through the backbone to compute class logits.
-    	"""
+	def forward(self, x: torch.Tensor) -> torch.Tensor:
+		"""
+		Pass input images through the backbone to compute class logits.
+		"""
 		return self.backbone(x)
 
-    def get_features(self, x):
+	def get_features(self, x):
 		"""
 		Extract flattened features from ResNet backbone before final classifi-
 		cation layer.
@@ -58,8 +59,8 @@ class ResNetClassifier(nn.Module):
 		x = self.backbone.avgpool(x)
 		return torch.flatten(x, 1)
 
-def create_classifier(num_classes: int = 100, dropout_rate: float = 0.5) -> nn.Module:
-    """
+def create_classifier(num_classes: int = 10, dropout_rate: float = 0.5) -> nn.Module:
+	"""
 	Instantiate a ResNet classifier with the given number of classes and drop-
 	out rate.
 	"""
@@ -69,10 +70,10 @@ if __name__ == "__main__":
 	"""
 	Validate model initialization, forward pass logic, and feature extraction.
 	"""
-	# Initialize the model with the default number of classes (100), and report
+	# Initialize the model with the default number of classes (10), and report
 	# the total number of trainable parameters.
 	device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-	model = create_classifier(num_classes = 100).to(device)
+	model = create_classifier(num_classes = 10).to(device)
 	if torch.cuda.device_count() > 1:
 		model = nn.DataParallel(model)
 	print(f"Total Parameters: {sum(p.numel() for p in model.parameters())}")

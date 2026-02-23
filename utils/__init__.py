@@ -1,2 +1,2 @@
-from .dataset import get_fgvc_dataloaders
+from .dataset import get_dataloaders
 from .metrics import AverageMeter, accuracy, save_results

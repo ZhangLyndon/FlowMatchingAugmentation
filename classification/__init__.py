@@ -1,3 +1,3 @@
-from .train_classifier import ClassificationTrainer
 from .resnet import create_classifier, ResNetClassifier
+from .train_classifier import ClassificationTrainer
 from .synthetic_augmentation import create_augmented_dataset, SyntheticDataGenerator, SyntheticAugmentationEvaluator

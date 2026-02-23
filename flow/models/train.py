@@ -44,7 +44,7 @@ class Trainer(ABC):
         """
         return torch.optim.Adam(self.model.parameters(), lr = lr)
 
-    def train(self, num_epochs: int, device: torch.device, lr: float = 5e-5, **kwargs) -> torch.Tensor:
+    def train(self, num_epochs: int, device: torch.device, lr: float = 1e-3, **kwargs) -> torch.Tensor:
         """
         Train the model for the specified number of epochs with the given lear-
         ning rate.
