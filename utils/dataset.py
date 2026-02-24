@@ -50,7 +50,7 @@ def get_dataloaders(root_dir: str, batch_size: int = 32, image_size: int = 224, 
 
 if __name__ == "__main__":
     # Test the data loaders
-    root_dir = "/content/data"
+    root_dir = "./data"
     train_loader, test_loader = get_dataloaders(root_dir)
 
     print(f"Training Set Size: {len(train_loader.dataset)}")

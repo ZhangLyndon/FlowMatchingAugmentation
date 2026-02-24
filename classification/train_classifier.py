@@ -198,7 +198,7 @@ def parse_args():
 	parser = argparse.ArgumentParser(description = "Train ResNet-50 Classifier on Fashion MNIST", add_help = False)
 
 	# Data
-	parser.add_argument("--data_root", type = str, default = "/content/data", help = "Path to Fashion MNIST dataset")
+	parser.add_argument("--data_root", type = str, default = "./data", help = "Path to Fashion MNIST dataset")
 	parser.add_argument("--batch_size", type = int, default = 32, help = "Training batch size")
 	parser.add_argument("--num_workers", type = int, default = 2, help = "Number of data loading workers")
 
@@ -210,9 +210,9 @@ def parse_args():
 	parser.add_argument("--gamma", type = float, default = 0.1, help = "Scheduler gamma")
 
 	# Output
-	parser.add_argument("--classification_dir", type = str, default = "/content/results/classification",
+	parser.add_argument("--classification_dir", type = str, default = "./results/classification",
 						help = "Directory for classification results")
-	parser.add_argument("--checkpoint_dir", type = str, default = "/content/checkpoints",
+	parser.add_argument("--checkpoint_dir", type = str, default = "./checkpoints",
 						help = "Directory for model checkpoints")
 	parser.add_argument("--save_interval", type = int, default = 5, help = "Number of epochs between checkpoint saves")
 

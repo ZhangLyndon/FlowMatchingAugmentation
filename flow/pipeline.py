@@ -24,7 +24,7 @@ class FlowMatchingPipeline:
 		self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 		# Create output image directory
-		sample_dir = "/content/images"
+		sample_dir = "./images"
 		os.makedirs(sample_dir, exist_ok = True)
 
 		# Initialize Gaussian conditional probability path to guide samples from
@@ -48,6 +48,7 @@ class FlowMatchingPipeline:
 	
 	def generate_samples(self,
 						 samples_per_class: int = 6000,
+						 generation_batch: int = 6000,
 						 guidance_scales: Tuple[float, ...] = (3.0, 5.0, 7.0),
 						 num_timesteps: int = 100):
 
@@ -59,7 +60,6 @@ class FlowMatchingPipeline:
 		gc.collect()
 		
 		num_classes = 10
-		batch_size = 3000
 		for w in guidance_scales:
 			# Create a classifier-free guided vector field with the specified
 			# guidance scale, then simulate as an ODE.
@@ -70,10 +70,10 @@ class FlowMatchingPipeline:
 			# Generate samples for each class one batch at a time to avoid out of
 			# memory errors.
 			for class_label in range(num_classes):
-				for batch_id in range(math.ceil(samples_per_class / batch_size)):
+				for batch_id in range(math.ceil(samples_per_class / generation_batch)):
 					# Calculate start and end indices for the current batch
-					start_index = batch_id * batch_size
-					end_index = min((batch_id + 1) * batch_size, samples_per_class)
+					start_index = batch_id * generation_batch
+					end_index = min((batch_id + 1) * generation_batch, samples_per_class)
 					num_samples = end_index - start_index
 
 					y = torch.full((num_samples, ), class_label, dtype = torch.int64).to(self.device)
@@ -101,7 +101,7 @@ class FlowMatchingPipeline:
 
 		# Create directory to store the generated sample. Organize based on the
 		# guidance scale and class label.
-		directory = f"/content/images/w-{guidance_scale}/class-{class_label}"
+		directory = f"./images/w-{guidance_scale}/class-{class_label}"
 		os.makedirs(directory, exist_ok = True)
 
 		# Save the image to disk.
@@ -121,9 +121,10 @@ class FlowMatchingPipeline:
 
 def main():
 	parser = argparse.ArgumentParser(description = "Flow Matching Pipeline", add_help = False)
-	parser.add_argument("--num_samples", type = int, default = 6000, help = "Number of samples to generate")
+	parser.add_argument("--num_samples", type = int, default = 6000, help = "Number of samples to generate per class")
+	parser.add_argument("--generation_batch", type = int, default = 6000, help = "Number of samples to generate at a time")
 	parser.add_argument("--seed", type = int, default = 42, help = "Random seed")
-	parser.add_argument("--checkpoint_dir", type = str, default = "/content/checkpoints",
+	parser.add_argument("--checkpoint_dir", type = str, default = "./checkpoints",
 						help = "Directory for model checkpoints")
 
 	args = parser.parse_args()
@@ -136,7 +137,7 @@ def main():
 
 	# Generate samples using classifier-free guidance conditional flow matching,
 	# then save the generated samples. Persist the U-Net weights as a checkpoint.
-	flow.generate_samples(samples_per_class = args.num_samples)
+	flow.generate_samples(samples_per_class = args.num_samples, generation_batch = args.generation_batch)
 	flow.save_checkpoint(args.checkpoint_dir)
 
 if __name__ == "__main__":
