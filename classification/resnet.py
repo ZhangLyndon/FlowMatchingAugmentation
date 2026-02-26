@@ -1,19 +1,18 @@
 import torch
 import torch.nn as nn
 import torchvision
-from torchvision.models import resnet50, ResNet50_Weights
-import io
-from typing import Optional
+from torchvision.models import resnet18, ResNet18_Weights
+import os
 from contextlib import redirect_stdout, redirect_stderr
 
 class ResNetClassifier(nn.Module):
 	"""
-	ResNet-50 classifier for clothing item classification with the Fashion MNIST
+	ResNet-18 classifier for clothing item classification with the Fashion MNIST
 	dataset.
 	"""
 	def __init__(self, num_classes: int = 10, dropout_rate: float = 0.5):
 		"""
-		Initialize a ResNet-50 classifier.
+		Initialize a ResNet-18 classifier.
 
 		Parameters
 		----------
@@ -25,11 +24,14 @@ class ResNetClassifier(nn.Module):
 		"""
 		super().__init__()
 
-		# Load ResNet-50, pretrained on ImageNet, with default (best available)
+		# Load ResNet-18, pretrained on ImageNet, with default (best available)
 		# weights.
-		f = io.StringIO()
-		with redirect_stdout(f), redirect_stderr(f):
-			self.backbone = resnet50(weights = ResNet50_Weights.DEFAULT)
+		with open(os.devnull, "w") as fnull:
+			with redirect_stdout(fnull), redirect_stderr(fnull):
+				self.backbone = resnet18(weights = ResNet18_Weights.DEFAULT)
+
+		# Modify the initial convolution layer to accept 1 channel (grayscale).
+		self.backbone.conv1 = nn.Conv2d(1, 64, kernel_size = 7, stride = 2, padding = 3, bias = False)
 
         # Replace the final fully connected classification layer in the pre-
         # trained ResNet backbone. Retrieve the number of input dimensions,
@@ -82,9 +84,9 @@ if __name__ == "__main__":
 		model = nn.DataParallel(model)
 	print(f"Total Parameters: {sum(p.numel() for p in model.parameters())}")
 
-	# Create a batch of (i.e., 2) 3-channel 224 x 224 images, pass them through
+	# Create a batch of (i.e., 2) 1-channel 32 x 32 images, pass them through
 	# the model, and report the shape of class logits.
-	x = torch.randn(2, 3, 224, 224)
+	x = torch.randn(2, 1, 32, 32)
 	output = model(x)
 	print(f"Output Shape: {output.shape}")
 

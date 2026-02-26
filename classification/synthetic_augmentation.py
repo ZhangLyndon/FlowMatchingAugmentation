@@ -115,7 +115,7 @@ class SyntheticDataGenerator:
 		images = denorm(images).clamp(0, 1)
 		return images
 		
-	def generate_batch(self, class_label: int, batch_size: int = 32, num_timesteps: int = 100) -> torch.Tensor:
+	def generate_batch(self, class_label: int, batch_size: int = 16, num_timesteps: int = 100) -> torch.Tensor:
 		"""
 		Generate a batch of synthetic images for a given class.
 		"""
@@ -245,7 +245,7 @@ class SyntheticAugmentationEvaluator:
 		baseline_eval_path = os.path.join(self.args.classification_dir, "baseline_evaluation.json")
 		save_results(baseline_evaluation, baseline_eval_path)
 
-	def run_low_data_experiments(self, real_ratios: List[float] = [0.1, 0.25, 0.5, 1.0]) -> None:
+	def run_low_data_experiments(self, real_ratio: float) -> None:
 		"""
 		Train the ResNet classifier on 10% / 25% / 50% / 100% real + full synthetic
 		(equivalent to 100% real trainval) data. Evaluate using top-1 accuracy and
@@ -255,37 +255,36 @@ class SyntheticAugmentationEvaluator:
 													batch_size = self.args.batch_size,
 													num_workers = self.args.num_workers)
 
-		for ratio in real_ratios:
-			subdirectory = os.path.join(self.args.augmentation_dir, f"real-{ratio}", f"w-{self.guidance_scale}")
-			os.makedirs(subdirectory, exist_ok = True)
+		subdirectory = os.path.join(self.args.augmentation_dir, f"real-{real_ratio}", f"w-{self.guidance_scale}")
+		os.makedirs(subdirectory, exist_ok = True)
 
-			synthetic_dir = os.path.join(self.args.synthetic_data_dir, f"w-{self.guidance_scale}")
+		synthetic_dir = os.path.join(self.args.synthetic_data_dir, f"w-{self.guidance_scale}")
 
-			unaugmented_loader = create_augmented_dataset(original_loader = train_loader,
-													      synthetic_dir = synthetic_dir,
-													      use_synthetic = False,
-													      real_ratio = ratio)
+		unaugmented_loader = create_augmented_dataset(original_loader = train_loader,
+												      synthetic_dir = synthetic_dir,
+												      use_synthetic = False,
+												      real_ratio = real_ratio)
 
-			unaugmented_trainer = ClassificationTrainer(self.args)
-			unaugmented_results = unaugmented_trainer.train(unaugmented_loader, test_loader)
-			unaugmented_evaluation = self.evaluate_model(unaugmented_trainer.model, test_loader)
-			
-			augmented_loader = create_augmented_dataset(original_loader = train_loader,
-														synthetic_dir = synthetic_dir,
-														use_synthetic = True,
-														real_ratio = ratio)
+		unaugmented_trainer = ClassificationTrainer(self.args)
+		unaugmented_results = unaugmented_trainer.train(unaugmented_loader, test_loader)
+		unaugmented_evaluation = self.evaluate_model(unaugmented_trainer.model, test_loader)
+		
+		augmented_loader = create_augmented_dataset(original_loader = train_loader,
+													synthetic_dir = synthetic_dir,
+													use_synthetic = True,
+													real_ratio = real_ratio)
 
-			augmented_trainer = ClassificationTrainer(self.args)
-			augmented_results = augmented_trainer.train(augmented_loader, test_loader)
-			augmented_evaluation = self.evaluate_model(augmented_trainer.model, test_loader)
+		augmented_trainer = ClassificationTrainer(self.args)
+		augmented_results = augmented_trainer.train(augmented_loader, test_loader)
+		augmented_evaluation = self.evaluate_model(augmented_trainer.model, test_loader)
 
-			print(f"Real Data Ratio: {ratio}, Guidance Scale: {self.guidance_scale}")
-			print(f"Unaugmented Evaluation: {unaugmented_evaluation}")
-			print(f"Augmented Evaluation: {augmented_evaluation}")
+		print(f"Real Data Ratio: {real_ratio}, Guidance Scale: {self.guidance_scale}")
+		print(f"Unaugmented Evaluation: {unaugmented_evaluation}")
+		print(f"Augmented Evaluation: {augmented_evaluation}")
 
-			combined_evaluation = {"unaugmented": unaugmented_evaluation, "augmented": augmented_evaluation}
-			combined_eval_path = os.path.join(subdirectory, "combined_evaluation.json")
-			save_results(combined_evaluation, combined_eval_path)
+		combined_evaluation = {"unaugmented": unaugmented_evaluation, "augmented": augmented_evaluation}
+		combined_eval_path = os.path.join(subdirectory, "combined_evaluation.json")
+		save_results(combined_evaluation, combined_eval_path)
 
 def create_augmented_dataset(original_loader: DataLoader,
 							 synthetic_dir: str,
@@ -311,13 +310,12 @@ def create_augmented_dataset(original_loader: DataLoader,
 		if not os.path.exists(synthetic_dir):
 			raise FileNotFoundError(f"Synthetic data directory not found: {synthetic_dir}")
 
-		reload_transform = transforms.Compose([transforms.Resize(224),
+		reload_transform = transforms.Compose([transforms.Resize((32, 32)),
 									    	   transforms.RandomHorizontalFlip(),
 									    	   transforms.ToTensor(),
-									    	   transforms.Lambda(lambda x: x.repeat(3, 1, 1)),
-									    	   transforms.Normalize(mean = [0.485, 0.456, 0.406],
-														    	   	std = [0.229, 0.224, 0.225])])
-
+									    	   transforms.Normalize(mean = [0.28604],
+														    	   	std = [0.35302])])
+		
 		dataset = SyntheticImageDataset(synthetic_dir, transform = reload_transform)
 		synthetic_dataset.append(dataset)
 
@@ -335,11 +333,11 @@ def parse_args():
 
 	# Data
 	parser.add_argument("--data_root", type = str, default = "./data", help = "Path to Fashion MNIST dataset")
-	parser.add_argument("--batch_size", type = int, default = 32, help = "Training batch size")
-	parser.add_argument("--num_workers", type = int, default = 2, help = "Number of data loading workers")
+	parser.add_argument("--batch_size", type = int, default = 16, help = "Training batch size")
+	parser.add_argument("--num_workers", type = int, default = 0, help = "Number of data loading workers")
 
 	# Training
-	parser.add_argument("--epochs", type = int, default = 50, help = "Number of classifier training epochs")
+	parser.add_argument("--epochs", type = int, default = 20, help = "Number of classifier training epochs")
 	parser.add_argument("--lr", type = float, default = 0.001, help = "Learning rate")
 	parser.add_argument("--weight_decay", type = float, default = 1e-4, help = "Weight decay")
 	parser.add_argument("--step_size", type = int, default = 15, help = "Scheduler step size")
@@ -376,7 +374,8 @@ def main():
 	# Perform synthetic data evaluation for each guidance scale
 	for guidance_scale in (3.0, 5.0, 7.0):
 		evaluator = SyntheticAugmentationEvaluator(args, guidance_scale)
-		evaluator.run_low_data_experiments()
+		for real_ratio in (0.1, 0.25, 0.5, 1.0):
+			evaluator.run_low_data_experiments(real_ratio)
 
 if __name__ == "__main__":
 	main()

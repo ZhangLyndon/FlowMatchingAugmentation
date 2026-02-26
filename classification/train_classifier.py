@@ -1,4 +1,5 @@
 import os
+import gc
 import time
 import json
 import argparse
@@ -32,11 +33,11 @@ class ClassificationTrainer:
 		# Cross entropy loss L = -log[exp(z_y) / sum_k exp(z_k)]
 		self.criterion = nn.CrossEntropyLoss()
 
-		# Metrics: best top-1 validation accuracy over all epochs; training loss
-		# and top-1 training / validation accuracy for each epoch.
-		self.best_acc = 0.0
+		# Metrics: best validation loss over all epochs; training loss and
+		# validation loss / top-1 accuracy for each epoch.
+		self.best_loss = np.inf
 		self.train_losses = []
-		self.train_accs = []
+		self.val_losses = []
 		self.val_accs = []
 
 	def train_epoch(self, train_loader, epoch):
@@ -68,10 +69,10 @@ class ClassificationTrainer:
 			# or equal to 5.
 			acc1, acc5 = accuracy(output, target, topk = (1, 5))
 
-			# Update average loss, and top-1 (and 5) categorical accuracy.
+			# Update average loss, and top-1 / 5 categorical accuracy.
 			losses.update(loss.item(), data.size(0))
-			top1_acc.update(acc1[0], data.size(0))
-			top5_acc.update(acc5[0], data.size(0))
+			top1_acc.update(acc1, data.size(0))
+			top5_acc.update(acc5, data.size(0))
 
 			pbar.set_postfix({"Loss": f"{losses.avg:.4f}",
 							  "Top-1": f"{top1_acc.avg:.2f}%",
@@ -101,14 +102,14 @@ class ClassificationTrainer:
 				# than or equal to 5.
 				acc1, acc5 = accuracy(output, target, topk = (1, 5))
 
-				# Update average loss, and top-1 (and 5) categorical accuracy.
+				# Update average loss, and top-1 / 5 categorical accuracy.
 				losses.update(loss.item(), data.size(0))
-				top1_acc.update(acc1[0], data.size(0))
-				top5_acc.update(acc5[0], data.size(0))
+				top1_acc.update(acc1, data.size(0))
+				top5_acc.update(acc5, data.size(0))
 
 		return losses.avg, top1_acc.avg, top5_acc.avg
 
-	def save_checkpoint(self, epoch, val_acc, is_best = False):
+	def save_checkpoint(self, epoch, is_best = False):
 		"""
 		Save the ResNet classifier state as a checkpoint.
 		"""
@@ -116,8 +117,7 @@ class ClassificationTrainer:
 		         "model_state_dict": self.model.state_dict(),
 		         "optimizer_state_dict": self.optimizer.state_dict(),
 		         "scheduler_state_dict": self.scheduler.state_dict(),
-		         "best_acc": self.best_acc,
-		         "val_acc": val_acc}
+		         "best_loss": self.best_loss}
 
 		checkpoint_path = os.path.join(self.args.checkpoint_dir, f"resnet_epoch_{epoch}.pt")
 		torch.save(state, checkpoint_path)
@@ -150,44 +150,42 @@ class ClassificationTrainer:
 			# exploration to fine-tuned exploitation.
 			self.scheduler.step()
 
-			# Add training loss and top-1 training / validation accuracy for this
+			# Add training / validation loss and top-1 training accuracy for this
 			# epoch to their respective lists.
 			self.train_losses.append(train_loss)
-			self.train_accs.append(train_top1)
+			self.val_losses.append(val_loss)
 			self.val_accs.append(val_top1)
 
-			# Best model is defined by the top-1 accuracy (proportion of samples
-			# where the top-scoring class matches the ground truth) on the vali-
-			# dation set.
-			is_best = val_top1 > self.best_acc
+			# Best model is defined by the loss on the validation set.
+			is_best = val_loss < self.best_loss
 			if is_best:
-				self.best_acc = val_top1
+				self.best_loss = val_loss
 
 			# Save model state as a checkpoint every N epochs, or if validation
-			# top-1 accuracy reaches a new peak.
+			# loss reaches a new peak.
 			if (epoch + 1) % self.args.save_interval == 0 or is_best:
-				self.save_checkpoint(epoch, val_top1, is_best)
+				self.save_checkpoint(epoch, is_best)
 
 			# Print summary statistics for epoch
 			print(f"Training Set | Loss: {train_loss:.4f}, Top-1 Accuracy: {train_top1:.2f}%, Top-5 Accuracy: {train_top5:.2f}%")
 			print(f"Validation Set | Loss: {val_loss:.4f}, Top-1 Accuracy: {val_top1:.2f}%, Top-5 Accuracy: {val_top5:.2f}%")
-			print(f"Best Top-1 Validation Accuracy (Up Until Now): {self.best_acc:.2f}%")
-			print("_" * 104 + "\n")
+			print(f"Best Validation Loss (Up Until Now): {self.best_loss:.4f}")
+			print("_" * 105 + "\n")
 
 		total_time = time.time() - start_time
 		print(f"Training Time: {total_time:.2f} seconds")
-		print(f"Best Top-1 Validation Accuracy (All Epochs): {self.best_acc:.2f}%")
+		print(f"Best Validation Loss (All Epochs): {self.best_loss:.4f}%")
 
-		# Save best top-1 validation accuracy, final top-1 training accuracy,
-		# training losses / top-1 training / validation accuracies over all
-		# epochs, as well as training time and number of epochs completed.
+		# Save best validation loss, final top-1 training accuracy, training
+		# losses / accuracies + validation losses over all epochs, as well as
+		# training time and number of epochs completed.
 		results = {"epochs_completed": len(self.train_losses),
 				   "training_time_seconds": total_time,
-				   "best_val_accuracy": self.best_acc,
+				   "best_val_loss": self.best_loss,
 				   "final_train_accuracy": train_top1,
 				   "train_losses": self.train_losses,
-				   "train_accuracies": self.train_accs,
-				   "val_accuracies": self.val_accs}
+				   "val_accuracies": self.val_accs,
+				   "val_losses": self.val_losses}
 
 		# Save training results as a JSON file.
 		# Default path: ./results/classification/training_results.json.
@@ -197,15 +195,15 @@ class ClassificationTrainer:
 		return results
 
 def parse_args():
-	parser = argparse.ArgumentParser(description = "Train ResNet-50 Classifier on Fashion MNIST", add_help = False)
+	parser = argparse.ArgumentParser(description = "Train ResNet-18 Classifier on Fashion MNIST", add_help = False)
 
 	# Data
 	parser.add_argument("--data_root", type = str, default = "./data", help = "Path to Fashion MNIST dataset")
-	parser.add_argument("--batch_size", type = int, default = 32, help = "Training batch size")
-	parser.add_argument("--num_workers", type = int, default = 2, help = "Number of data loading workers")
+	parser.add_argument("--batch_size", type = int, default = 16, help = "Training batch size")
+	parser.add_argument("--num_workers", type = int, default = 0, help = "Number of data loading workers")
 
 	# Training
-	parser.add_argument("--epochs", type = int, default = 50, help = "Number of classifier training epochs")
+	parser.add_argument("--epochs", type = int, default = 20, help = "Number of classifier training epochs")
 	parser.add_argument("--lr", type = float, default = 0.001, help = "Learning rate")
 	parser.add_argument("--weight_decay", type = float, default = 1e-4, help = "Weight decay")
 	parser.add_argument("--step_size", type = int, default = 15, help = "Scheduler step size")
@@ -238,7 +236,7 @@ def main():
 												batch_size = args.batch_size,
 												num_workers = args.num_workers)
 
-	# Initialize the ResNet-50 trainer on Fashion MNIST. Monitor performance
+	# Initialize the ResNet-18 trainer on Fashion MNIST. Monitor performance
 	# using the test split.
 	trainer = ClassificationTrainer(args)
 	results = trainer.train(train_loader, test_loader)

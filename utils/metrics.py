@@ -41,8 +41,8 @@ def accuracy(output, target, topk = (1, )):
 
     Returns
     -------
-    res : list of torch.Tensor
-        Top-k accuracies (shape [1]), as percentages.
+    res : list of float
+        Top-k accuracies, as percentages.
     """
     # Disable gradient computation during validation and inference.
     with torch.no_grad():
@@ -67,7 +67,7 @@ def accuracy(output, target, topk = (1, )):
             # the batch will be correct, so the accuracy percentage can be com-
             # puted by dividing by the batch size.
             correct_k = correct[:k].reshape(-1).float().sum(0, keepdim = True)
-            res.append(correct_k.mul_(100.0 / batch_size))
+            res.append(correct_k.mul_(100.0 / batch_size).item())
         return res
 
 def compute_average_metrics(metrics_list):

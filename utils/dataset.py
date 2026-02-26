@@ -6,26 +6,24 @@ from torchvision import transforms
 from torch.utils.data import DataLoader
 from torchvision.datasets import FashionMNIST
 
-def get_dataloaders(root_dir: str, batch_size: int = 32, image_size: int = 224, num_workers: int = 2):
+def get_dataloaders(root_dir: str, batch_size: int = 16, image_size: int = 32, num_workers: int = 0):
     """
     Create data loaders for the Fashion MNIST dataset, to be used with the
-    ResNet-50 classifier.
+    ResNet-18 classifier.
     """
     # Resize, then add a random horizontal flip to the training set, to enable
-    # better generalization. Normalization statistics reflect per-channel va-
-    # lues from ImageNet.
-    train_transform = transforms.Compose([transforms.Resize(image_size),
+    # better generalization. Normalization statistics Fashion MNIST per-channel
+    # values.
+    train_transform = transforms.Compose([transforms.Resize((image_size, image_size)),
                                           transforms.RandomHorizontalFlip(),
                                           transforms.ToTensor(),
-                                          transforms.Lambda(lambda x: x.repeat(3, 1, 1)),
-                                          transforms.Normalize(mean = [0.485, 0.456, 0.406],
-                                                               std = [0.229, 0.224, 0.225])])
+                                          transforms.Normalize(mean = [0.28604],
+                                                               std = [0.35302])])
 
-    test_transform = transforms.Compose([transforms.Resize(image_size),
+    test_transform = transforms.Compose([transforms.Resize((image_size, image_size)),
                                          transforms.ToTensor(),
-                                         transforms.Lambda(lambda x: x.repeat(3, 1, 1)),
-                                         transforms.Normalize(mean = [0.485, 0.456, 0.406],
-                                                              std = [0.229, 0.224, 0.225])])
+                                         transforms.Normalize(mean = [0.28604],
+                                                              std = [0.35302])])
 
     # Create training and test sets
     train_dataset = FashionMNIST(root_dir, train = True, download = True, transform = train_transform)
@@ -35,16 +33,12 @@ def get_dataloaders(root_dir: str, batch_size: int = 32, image_size: int = 224, 
     train_loader = DataLoader(train_dataset,
                               batch_size = batch_size,
                               shuffle = True,
-                              num_workers = num_workers,
-                              pin_memory = True,
-                              persistent_workers = True)
+                              num_workers = num_workers)
     
     test_loader = DataLoader(test_dataset,
                              batch_size = batch_size,
                              shuffle = False,
-                             num_workers = num_workers,
-                             pin_memory = True,
-                             persistent_workers = True)
+                             num_workers = num_workers)
 
     return train_loader, test_loader
 

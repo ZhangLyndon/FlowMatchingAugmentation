@@ -55,7 +55,7 @@ class FlowMatchingPipeline:
 		# Train the U-Net for the specified number of epochs and learning rate.
 		self.trainer.train(num_epochs = 6000, device = self.device, lr = 1e-3, batch_size = 250)
 
-		# Clear memory post-training
+		# Clear memory post-training.
 		torch.cuda.empty_cache()
 		gc.collect()
 		
