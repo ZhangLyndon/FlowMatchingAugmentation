@@ -68,6 +68,11 @@ class ClassificationTrainer:
 			# or equal to 5.
 			acc1, acc5 = accuracy(output, target, topk = (1, 5))
 
+			# Update average loss, and top-1 (and 5) categorical accuracy.
+			losses.update(loss.item(), data.size(0))
+			top1_acc.update(acc1[0], data.size(0))
+			top5_acc.update(acc5[0], data.size(0))
+
 			pbar.set_postfix({"Loss": f"{losses.avg:.4f}",
 							  "Top-1": f"{top1_acc.avg:.2f}%",
 							  "Top-5": f"{top5_acc.avg:.2f}%"})
@@ -96,7 +101,7 @@ class ClassificationTrainer:
 				# than or equal to 5.
 				acc1, acc5 = accuracy(output, target, topk = (1, 5))
 
-				# Update average loss, and top-1 (or 5) categorical accuracy.
+				# Update average loss, and top-1 (and 5) categorical accuracy.
 				losses.update(loss.item(), data.size(0))
 				top1_acc.update(acc1[0], data.size(0))
 				top5_acc.update(acc5[0], data.size(0))
@@ -164,13 +169,10 @@ class ClassificationTrainer:
 				self.save_checkpoint(epoch, val_top1, is_best)
 
 			# Print summary statistics for epoch
-			print(f"[Epoch {epoch + 1}/{self.args.epochs}]")
-			print("Training Set")
-			print(f"Loss: {train_loss:.4f}, Top-1 Accuracy: {train_top1:.2f}%, Top-5 Accuracy: {train_top5:.2f}%")
-			print("Validation Set")
-			print(f"Loss: {val_loss:.4f}, Top-1 Accuracy: {val_top1:.2f}%, Top-5 Accuracy: {val_top5:.2f}%")
+			print(f"Training Set | Loss: {train_loss:.4f}, Top-1 Accuracy: {train_top1:.2f}%, Top-5 Accuracy: {train_top5:.2f}%")
+			print(f"Validation Set | Loss: {val_loss:.4f}, Top-1 Accuracy: {val_top1:.2f}%, Top-5 Accuracy: {val_top5:.2f}%")
 			print(f"Best Top-1 Validation Accuracy (Up Until Now): {self.best_acc:.2f}%")
-			print("-" * 60)
+			print("_" * 104 + "\n")
 
 		total_time = time.time() - start_time
 		print(f"Training Time: {total_time:.2f} seconds")

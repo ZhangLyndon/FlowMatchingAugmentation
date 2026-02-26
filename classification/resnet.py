@@ -2,7 +2,9 @@ import torch
 import torch.nn as nn
 import torchvision
 from torchvision.models import resnet50, ResNet50_Weights
+import io
 from typing import Optional
+from contextlib import redirect_stdout, redirect_stderr
 
 class ResNetClassifier(nn.Module):
 	"""
@@ -25,7 +27,9 @@ class ResNetClassifier(nn.Module):
 
 		# Load ResNet-50, pretrained on ImageNet, with default (best available)
 		# weights.
-		self.backbone = resnet50(weights = ResNet50_Weights.DEFAULT)
+		f = io.StringIO()
+		with redirect_stdout(f), redirect_stderr(f):
+			self.backbone = resnet50(weights = ResNet50_Weights.DEFAULT)
 
         # Replace the final fully connected classification layer in the pre-
         # trained ResNet backbone. Retrieve the number of input dimensions,
