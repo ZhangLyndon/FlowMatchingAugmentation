@@ -174,7 +174,7 @@ class ClassificationTrainer:
 
 		total_time = time.time() - start_time
 		print(f"Training Time: {total_time:.2f} seconds")
-		print(f"Best Validation Loss (All Epochs): {self.best_loss:.4f}%")
+		print(f"Best Validation Loss (All Epochs): {self.best_loss:.4f}")
 
 		# Save best validation loss, final top-1 training accuracy, training
 		# losses / accuracies + validation losses over all epochs, as well as
