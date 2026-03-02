@@ -2,6 +2,7 @@ import os
 import gc
 import math
 import json
+import lzma
 import argparse
 from typing import Dict, List, Tuple, Optional
 
@@ -236,6 +237,9 @@ class SyntheticAugmentationEvaluator:
 		model = create_classifier(num_classes = 10).to(self.device)
 		if torch.cuda.device_count() > 1:
 			model = nn.DataParallel(model)
+		with lzma.open(model_path + ".xz", "rb") as f_in:
+			with open(model_path, "wb") as f_out:
+				f_out.write(f_in.read())
 		state = torch.load(model_path, map_location = self.device)
 		model.load_state_dict(state["model_state_dict"])
 
@@ -323,9 +327,7 @@ def create_augmented_dataset(original_loader: DataLoader,
 	modified_loader = DataLoader(modified_dataset,
 						    	 batch_size = original_loader.batch_size,
 						    	 shuffle = True,
-						    	 num_workers = original_loader.num_workers,
-						    	 pin_memory = True,
-						    	 persistent_workers = True)
+						    	 num_workers = original_loader.num_workers)
 	return modified_loader
 
 def parse_args():
@@ -354,7 +356,7 @@ def parse_args():
 						help = "Directory for augmentation results")
 	parser.add_argument("--checkpoint_dir", type = str, default = "./checkpoints",
 						help = "Directory for model checkpoints")
-	parser.add_argument("--save_interval", type = int, default = 5, help = "Number of epochs between checkpoint saves")
+	parser.add_argument("--save_interval", type = int, default = 10, help = "Number of epochs between checkpoint saves")
 
 	# General
 	parser.add_argument("--seed", type = int, default = 42, help = "Random seed")

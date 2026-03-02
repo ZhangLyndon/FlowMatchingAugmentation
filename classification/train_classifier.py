@@ -2,6 +2,7 @@ import os
 import gc
 import time
 import json
+import lzma
 import argparse
 from tqdm import tqdm
 
@@ -118,13 +119,21 @@ class ClassificationTrainer:
 		         "optimizer_state_dict": self.optimizer.state_dict(),
 		         "scheduler_state_dict": self.scheduler.state_dict(),
 		         "best_loss": self.best_loss}
-
-		checkpoint_path = os.path.join(self.args.checkpoint_dir, f"resnet_epoch_{epoch}.pt")
-		torch.save(state, checkpoint_path)
-
+		         
 		if is_best:
-			best_path = os.path.join(self.args.checkpoint_dir, "resnet_best_val_top1.pt")
+			best_path = os.path.join(self.args.checkpoint_dir, "resnet_best_val_loss.pt")
 			torch.save(state, best_path)
+			with open(best_path, "rb") as f_in:
+				with lzma.open(best_path + ".xz", "wb") as f_out:
+					f_out.write(f_in.read())
+			os.remove(best_path)
+		else:		
+			checkpoint_path = os.path.join(self.args.checkpoint_dir, f"resnet_epoch_{epoch}.pt")
+			torch.save(state, checkpoint_path)
+			with open(checkpoint_path, "rb") as f_in:
+				with lzma.open(checkpoint_path + ".xz", "wb") as f_out:
+					f_out.write(f_in.read())
+			os.remove(checkpoint_path)
 
 	def train(self, train_loader, val_loader):
 		"""
@@ -214,7 +223,7 @@ def parse_args():
 						help = "Directory for classification results")
 	parser.add_argument("--checkpoint_dir", type = str, default = "./checkpoints",
 						help = "Directory for model checkpoints")
-	parser.add_argument("--save_interval", type = int, default = 5, help = "Number of epochs between checkpoint saves")
+	parser.add_argument("--save_interval", type = int, default = 10, help = "Number of epochs between checkpoint saves")
 
 	# General
 	parser.add_argument("--seed", type = int, default = 42, help = "Random seed")
