@@ -2,7 +2,7 @@ import os
 import gc
 import time
 import json
-import lzma
+import gzip
 import argparse
 from tqdm import tqdm
 
@@ -124,14 +124,14 @@ class ClassificationTrainer:
 			best_path = os.path.join(self.args.checkpoint_dir, "resnet_best_val_loss.pt")
 			torch.save(state, best_path)
 			with open(best_path, "rb") as f_in:
-				with lzma.open(best_path + ".xz", "wb") as f_out:
+				with gzip.open(best_path + ".gz", "wb") as f_out:
 					f_out.write(f_in.read())
 			os.remove(best_path)
 		else:		
 			checkpoint_path = os.path.join(self.args.checkpoint_dir, f"resnet_epoch_{epoch}.pt")
 			torch.save(state, checkpoint_path)
 			with open(checkpoint_path, "rb") as f_in:
-				with lzma.open(checkpoint_path + ".xz", "wb") as f_out:
+				with gzip.open(checkpoint_path + ".gz", "wb") as f_out:
 					f_out.write(f_in.read())
 			os.remove(checkpoint_path)
 

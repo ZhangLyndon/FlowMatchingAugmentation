@@ -2,7 +2,7 @@ import os
 import gc
 import math
 import json
-import lzma
+import gzip
 import argparse
 from typing import Dict, List, Tuple, Optional
 
@@ -237,7 +237,7 @@ class SyntheticAugmentationEvaluator:
 		model = create_classifier(num_classes = 10).to(self.device)
 		if torch.cuda.device_count() > 1:
 			model = nn.DataParallel(model)
-		with lzma.open(model_path + ".xz", "rb") as f_in:
+		with gzip.open(model_path + ".gz", "rb") as f_in:
 			with open(model_path, "wb") as f_out:
 				f_out.write(f_in.read())
 		state = torch.load(model_path, map_location = self.device)
