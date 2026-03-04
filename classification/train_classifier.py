@@ -212,7 +212,7 @@ def parse_args():
 	parser.add_argument("--num_workers", type = int, default = 0, help = "Number of data loading workers")
 
 	# Training
-	parser.add_argument("--epochs", type = int, default = 20, help = "Number of classifier training epochs")
+	parser.add_argument("--epochs", type = int, default = 25, help = "Number of classifier training epochs")
 	parser.add_argument("--lr", type = float, default = 0.001, help = "Learning rate")
 	parser.add_argument("--weight_decay", type = float, default = 1e-4, help = "Weight decay")
 	parser.add_argument("--step_size", type = int, default = 15, help = "Scheduler step size")

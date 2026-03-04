@@ -1,5 +1,6 @@
 import os
 import gc
+import io
 import math
 import json
 import gzip
@@ -72,7 +73,7 @@ class SyntheticImageDataset(Dataset):
 		cls_label = self.class_labels[idx]
 
 		try:
-			image = Image.open(img_path).convert("RGB")
+			image = Image.open(img_path).convert("L")
 			if self.transform:
 				image = self.transform(image)
 			return image, cls_label
@@ -235,13 +236,11 @@ class SyntheticAugmentationEvaluator:
 		# Initialize the ResNet classifier, load trained weights, then set it to
 		# evaluation mode.
 		model = create_classifier(num_classes = 10).to(self.device)
+		with gzip.open(model_path + ".gz", "rb") as f:
+			state = torch.load(f, map_location = self.device)
+		model.load_state_dict(state["model_state_dict"])
 		if torch.cuda.device_count() > 1:
 			model = nn.DataParallel(model)
-		with gzip.open(model_path + ".gz", "rb") as f_in:
-			with open(model_path, "wb") as f_out:
-				f_out.write(f_in.read())
-		state = torch.load(model_path, map_location = self.device)
-		model.load_state_dict(state["model_state_dict"])
 
 		baseline_evaluation = self.evaluate_model(model, test_loader)
 		print(f"Baseline Evaluation: {baseline_evaluation}")
@@ -339,7 +338,7 @@ def parse_args():
 	parser.add_argument("--num_workers", type = int, default = 0, help = "Number of data loading workers")
 
 	# Training
-	parser.add_argument("--epochs", type = int, default = 20, help = "Number of classifier training epochs")
+	parser.add_argument("--epochs", type = int, default = 25, help = "Number of classifier training epochs")
 	parser.add_argument("--lr", type = float, default = 0.001, help = "Learning rate")
 	parser.add_argument("--weight_decay", type = float, default = 1e-4, help = "Weight decay")
 	parser.add_argument("--step_size", type = int, default = 15, help = "Scheduler step size")
