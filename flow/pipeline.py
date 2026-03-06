@@ -49,7 +49,7 @@ class FlowMatchingPipeline:
 	def generate_samples(self,
 						 samples_per_class: int = 6000,
 						 generation_batch: int = 6000,
-						 guidance_scales: Tuple[float, ...] = (3.0, 5.0, 7.0),
+						 guidance_scales: Tuple[float, ...] = (3.0, 5.0),
 						 num_timesteps: int = 100):
 
 		# Train the U-Net for the specified number of epochs and learning rate.

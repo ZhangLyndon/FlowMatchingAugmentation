@@ -373,7 +373,7 @@ def main():
 	np.random.seed(args.seed)
 
 	# Perform synthetic data evaluation for each guidance scale
-	for guidance_scale in (3.0, 5.0, 7.0):
+	for guidance_scale in (3.0, 5.0):
 		evaluator = SyntheticAugmentationEvaluator(args, guidance_scale)
 		for real_ratio in (0.1, 0.25, 0.5, 1.0):
 			evaluator.run_low_data_experiments(real_ratio)
