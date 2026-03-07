@@ -4,7 +4,6 @@ import time
 import json
 import gzip
 import argparse
-from tqdm import tqdm
 
 import numpy as np
 
@@ -51,9 +50,7 @@ class ClassificationTrainer:
 		top1_acc = AverageMeter()
 		top5_acc = AverageMeter()
 
-		pbar = tqdm(train_loader, desc = f"Epoch {epoch + 1}/{self.args.epochs}")
-
-		for batch_idx, (data, target) in enumerate(pbar):
+		for data, target in train_loader:
 			data, target = data.to(self.device), target.to(self.device)
 
 			# Forward pass: compute model predictions / loss
@@ -75,10 +72,6 @@ class ClassificationTrainer:
 			top1_acc.update(acc1, data.size(0))
 			top5_acc.update(acc5, data.size(0))
 
-			pbar.set_postfix({"Loss": f"{losses.avg:.4f}",
-							  "Top-1": f"{top1_acc.avg:.2f}%",
-							  "Top-5": f"{top5_acc.avg:.2f}%"})
-
 		return losses.avg, top1_acc.avg, top5_acc.avg
 
 	def validate(self, val_loader, epoch):
@@ -92,7 +85,7 @@ class ClassificationTrainer:
 		top5_acc = AverageMeter()
 
 		with torch.no_grad():
-			for data, target in tqdm(val_loader, desc = "Validation"):
+			for data, target in val_loader:
 				data, target = data.to(self.device), target.to(self.device)
 
 				# Forward pass: compute model prediction and cross-entropy loss
@@ -176,6 +169,7 @@ class ClassificationTrainer:
 				self.save_checkpoint(epoch, is_best)
 
 			# Print summary statistics for epoch
+			print(f"Epoch {epoch + 1}/{self.args.epochs}")
 			print(f"Training Set | Loss: {train_loss:.4f}, Top-1 Accuracy: {train_top1:.2f}%, Top-5 Accuracy: {train_top5:.2f}%")
 			print(f"Validation Set | Loss: {val_loss:.4f}, Top-1 Accuracy: {val_top1:.2f}%, Top-5 Accuracy: {val_top5:.2f}%")
 			print(f"Best Validation Loss (Up Until Now): {self.best_loss:.4f}")

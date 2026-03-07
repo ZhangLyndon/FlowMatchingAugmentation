@@ -248,7 +248,7 @@ class SyntheticAugmentationEvaluator:
 		baseline_eval_path = os.path.join(self.args.classification_dir, "baseline_evaluation.json")
 		save_results(baseline_evaluation, baseline_eval_path)
 
-	def run_low_data_experiments(self, real_ratio: float) -> None:
+	def run_low_data_experiments(self, real_ratio: float, use_synthetic: bool) -> None:
 		"""
 		Train the ResNet classifier on 10% / 25% / 50% / 100% real + full synthetic
 		(equivalent to 100% real trainval) data. Evaluate using top-1 accuracy and
@@ -262,32 +262,28 @@ class SyntheticAugmentationEvaluator:
 		os.makedirs(subdirectory, exist_ok = True)
 
 		synthetic_dir = os.path.join(self.args.synthetic_data_dir, f"w-{self.guidance_scale}")
-
-		unaugmented_loader = create_augmented_dataset(original_loader = train_loader,
-												      synthetic_dir = synthetic_dir,
-												      use_synthetic = False,
-												      real_ratio = real_ratio)
-
-		unaugmented_trainer = ClassificationTrainer(self.args)
-		unaugmented_results = unaugmented_trainer.train(unaugmented_loader, test_loader)
-		unaugmented_evaluation = self.evaluate_model(unaugmented_trainer.model, test_loader)
 		
-		augmented_loader = create_augmented_dataset(original_loader = train_loader,
-													synthetic_dir = synthetic_dir,
-													use_synthetic = True,
-													real_ratio = real_ratio)
+		# Prepare a DataLoader that combines real and optional synthetic samples.
+		# The mixture is controlled by real_ratio and use_synthetic, allowing tu-
+		# ning of the proportion of real data (from the original training set), as
+		# well as whether synthetic samples are used.
+		mixture_loader = create_augmented_dataset(original_loader = train_loader,
+												  synthetic_dir = synthetic_dir,
+												  use_synthetic = use_synthetic,
+												  real_ratio = real_ratio)
 
-		augmented_trainer = ClassificationTrainer(self.args)
-		augmented_results = augmented_trainer.train(augmented_loader, test_loader)
-		augmented_evaluation = self.evaluate_model(augmented_trainer.model, test_loader)
+		mixture_trainer = ClassificationTrainer(self.args)
+		mixture_results = mixture_trainer.train(mixture_loader, test_loader)
+		mixture_evaluation = self.evaluate_model(mixture_trainer.model, test_loader)
 
 		print(f"Real Data Ratio: {real_ratio}, Guidance Scale: {self.guidance_scale}")
-		print(f"Unaugmented Evaluation: {unaugmented_evaluation}")
-		print(f"Augmented Evaluation: {augmented_evaluation}")
-
-		combined_evaluation = {"unaugmented": unaugmented_evaluation, "augmented": augmented_evaluation}
-		combined_eval_path = os.path.join(subdirectory, "combined_evaluation.json")
-		save_results(combined_evaluation, combined_eval_path)
+		if use_synthetic:
+			print(f"Unaugmented Evaluation: {mixture_evaluation}")
+			mixture_eval_path = os.path.join(subdirectory, "unaugmented_evaluation.json")
+		else:
+			print(f"Augmented Evaluation: {mixture_evaluation}")
+			mixture_eval_path = os.path.join(subdirectory, "augmented_evaluation.json")
+		save_results(mixture_evaluation, mixture_eval_path)
 
 def create_augmented_dataset(original_loader: DataLoader,
 							 synthetic_dir: str,
@@ -372,11 +368,13 @@ def main():
 	torch.manual_seed(args.seed)
 	np.random.seed(args.seed)
 
-	# Perform synthetic data evaluation for each guidance scale
+	# Perform synthetic data evaluation for each guidance scale, with and without
+	# augmentation with synthetic image samples.
 	for guidance_scale in (3.0, 5.0):
 		evaluator = SyntheticAugmentationEvaluator(args, guidance_scale)
 		for real_ratio in (0.1, 0.25, 0.5, 1.0):
-			evaluator.run_low_data_experiments(real_ratio)
+			evaluator.run_low_data_experiments(real_ratio, True)
+			evaluator.run_low_data_experiments(real_ratio, False)
 
 if __name__ == "__main__":
 	main()
