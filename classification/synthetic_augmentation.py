@@ -278,11 +278,11 @@ class SyntheticAugmentationEvaluator:
 
 		print(f"Real Data Ratio: {real_ratio}, Guidance Scale: {self.guidance_scale}")
 		if use_synthetic:
-			print(f"Unaugmented Evaluation: {mixture_evaluation}")
-			mixture_eval_path = os.path.join(subdirectory, "unaugmented_evaluation.json")
-		else:
 			print(f"Augmented Evaluation: {mixture_evaluation}")
 			mixture_eval_path = os.path.join(subdirectory, "augmented_evaluation.json")
+		else:
+			print(f"Unaugmented Evaluation: {mixture_evaluation}")
+			mixture_eval_path = os.path.join(subdirectory, "unaugmented_evaluation.json")
 		save_results(mixture_evaluation, mixture_eval_path)
 
 def create_augmented_dataset(original_loader: DataLoader,
