@@ -250,9 +250,9 @@ class SyntheticAugmentationEvaluator:
 
 	def run_low_data_experiments(self, real_ratio: float, use_synthetic: bool) -> None:
 		"""
-		Train the ResNet classifier on 10% / 25% / 50% / 100% real + full synthetic
-		(equivalent to 100% real trainval) data. Evaluate using top-1 accuracy and
-		macro-averaged F1.
+		Train the ResNet classifier on 0.1% / 0.2% / 1% / 10% / 100% real +
+		synthetic data (equivalent in size to the full training split). Eval-
+		uate using top-1 accuracy and macro-averaged F1.
 		"""
 		train_loader, test_loader = get_dataloaders(root_dir = self.args.data_root,
 													batch_size = self.args.batch_size,
@@ -351,7 +351,7 @@ def parse_args():
 						help = "Directory for augmentation results")
 	parser.add_argument("--checkpoint_dir", type = str, default = "./checkpoints",
 						help = "Directory for model checkpoints")
-	parser.add_argument("--save_interval", type = int, default = 10, help = "Number of epochs between checkpoint saves")
+	parser.add_argument("--save_interval", type = int, default = 20, help = "Number of epochs between checkpoint saves")
 
 	# General
 	parser.add_argument("--seed", type = int, default = 42, help = "Random seed")
@@ -368,13 +368,29 @@ def main():
 	torch.manual_seed(args.seed)
 	np.random.seed(args.seed)
 
-	# Perform synthetic data evaluation for each guidance scale, with and without
-	# augmentation with synthetic image samples.
+	# Obtain DataLoader for the test set
+	_, test_loader = get_dataloaders(root_dir = args.data_root,
+									 batch_size = args.batch_size,
+									 num_workers = args.num_workers)
+
+	# Set the guidance scale to 1.0. This dummy value represents the base guided
+	# vector field without additional reinforcement.
+	guidance_scale = 1.0
+
+	# Evaluate the performance of the trained baseline classifier on the test
+	# set, and report the top-1 classification accuracy and macro-averaged F1
+	# score. The macro F1 score helps reveal systematic underperformance on
+	# individual classes.
+	evaluator = SyntheticAugmentationEvaluator(args, guidance_scale)
+	model_path = os.path.join(args.checkpoint_dir, "resnet_best_val_loss.pt")
+	evaluator.evaluate_baseline(model_path, test_loader)
+
+	# Evaluate synthetic data for each guidance scale, comparing results with
+	# and without augmentation with synthetic image samples.
 	for guidance_scale in (3.0, 5.0):
 		evaluator = SyntheticAugmentationEvaluator(args, guidance_scale)
-		for real_ratio in (0.1, 0.25, 0.5, 1.0):
-			evaluator.run_low_data_experiments(real_ratio, True)
-			evaluator.run_low_data_experiments(real_ratio, False)
+		evaluator.run_low_data_experiments(args.real_ratio, True)
+		evaluator.run_low_data_experiments(args.real_ratio, False)
 
 if __name__ == "__main__":
 	main()
