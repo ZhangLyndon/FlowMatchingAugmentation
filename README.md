@@ -15,11 +15,11 @@ Flow Matching Synthetic Image Generation for Data Augmentation
 
 ## Overview
 
-This project implements and validates synthetic data augmentation for computer vision using conditional flow matching (CFM) with classifier-free guidance (CFG), a state-of-the-art generative modeling technique. Our results indicate that incorporating synthetically generated samples into training improves classification accuracy and $\mathsf F_1$ score for coarse-grained fashion item classification compared with models trained solely on real data, with the largest gains observed in the extreme low-data regime, i.e., $<1\\%$ of the full dataset.
+This project implements and validates synthetic data augmentation for computer vision using conditional flow matching (CFM) with classifier-free guidance (CFG), a state-of-the-art generative modeling technique. Our results indicate that incorporating synthetically generated samples into training improves classification accuracy and $\mathsf F_1$ score for coarse-grained fashion item classification compared with models trained solely on real data, with the largest gains observed in the extreme low-data regime, i.e., < 1% of the full dataset.
 
 **Key Results**
-- Modest but consistent accuracy improvements $\left(0.45\\%-0.8\\%\right)$ with flow model-based synthetic data augmentation at $1\\%$ of the training set
-- Pronounced gains $\left(10.9\\%-19.4\\%\right)$ in the extreme low-data regime, i.e., $<1\\%$ of the training set
+- Modest but consistent accuracy improvements (0.45% $-$ 0.8%) with flow model-based synthetic data augmentation at 1% of the training set
+- Pronounced gains (10.9% $-$ 19.4%) in the extreme low-data regime, i.e., < 1% of the training set
 - 60,000 synthetic images generated across 10 fashion item categories
 - Evaluation using ResNet-18 (pre-trained on ImageNet), fine-tuned on fractions of the training set, with and without synthetic augmentation
 
@@ -78,6 +78,20 @@ python classification/synthetic_augmentation.py --data_root ./data \
 ```
 
 ## Results
+
+### Top-1 Accuracy
+
+Top-1 accuracy represents the proportion of samples for which the model's highest-scoring predicted class $-$ i.e., the class with the largest logit or predicted probability $-$ matches the ground truth label. It is equivalent to standard classification accuracy, when evaluations are based on the highest-scoring class for each input.
+
+| Data Fraction | Baseline<br>$(w = 3)$ | Augmented<br>$(w = 3)$ | Improvement<br>$(w = 3)$ | Baseline<br>$(w = 5)$ | Augmented<br>$(w = 5)$ | Improvement<br>$(w = 5)$ |
+| :-----------: | :-------------------: | :--------------------: | :----------------------: | :-------------------: | :--------------------: | :----------------------: |
+| 0.1%          | 59.07%                | 78.43%                 | 19.36%                   | 57.88%                | 74.51%                 | 16.63%                   |
+| 0.2%          | 66.61%                | 79.56%                 | 12.95%                   | 64.65%                | 75.59%                 | 10.94%                   |
+| 1%            | 80.62%                | 81.08%                 | 0.46%                    | 80.48%                | 81.29%                 | 0.81%                    |
+| 10%           | 88.56%                | 87.41%                 | -1.15%                   | 87.95%                | 87.13%                 | -0.82%                   |
+| 100%          | 92.63%                | 91.67%                 | -0.96%                   | 92.13%                | 91.83%                 | -0.3%                    |
+
+We observe the largest gains (> 10%) in the extreme low-data (< 1%) regime, in particular at 0.1% $-$ 0.2% of the training set, where performance improves substantially with only 6-12 samples per class. Fine-tuning on 1% of the training set yields modest but consistent improvements (0.45% $-$ 0.8%), corresponding to around 60 samples per class, with negligible gains beyond this point.
 
 ## Project Structure
 
