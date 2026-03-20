@@ -95,13 +95,28 @@ Top-1 accuracy represents the proportion of samples for which the model's highes
 
 We observe the largest gains (> 10%) in the extreme low-data regime, specifically when augmenting 0.1% $-$ 0.2% of the original training set (6-12 samples per class). Increasing the data budget to 0.5% (30 samples per class) yields smaller, but still significant, improvements of 3.5% $-$ 4.9%. At 1% (60 samples per class), synthetic data augmentation provides modest but consistent gains (0.45% $-$ 0.8%), with negligible improvements beyond this point.
 
-This result is particularly notable in light of [prior](https://github.com/Srecharan/GenVision) work, which reported a 4.1% improvement in classification accuracy when augmenting the full training split of the [Caltech-UCSD Birds 200-2011](https://www.vision.caltech.edu/datasets/cub_200_2011) (CUB-200-2011) dataset. CUB-200-2011 is a well-known _fine-grained_ visual classification benchmark comprising approximately 30 samples per class across 200 classes, whereas Fashion MNIST is comparatively coarse-grained. The comparable gains observed here (3.5% $-$ 4.9%) at an equivalent data scale suggest that dataset size, rather than task complexity, is the primary factor driving the effectiveness of synthetic data augmentation.
+This result is particularly notable in light of [prior](https://github.com/Srecharan/GenVision) work, which reported a 4.1% improvement in classification accuracy when augmenting the full training split of the [Caltech-UCSD Birds-200 2011](https://www.vision.caltech.edu/datasets/cub_200_2011) (CUB-200-2011) dataset. CUB-200-2011 is a well-known _fine-grained_ visual classification benchmark comprising approximately 30 samples per class across 200 classes, whereas Fashion MNIST is comparatively coarse-grained. The comparable gains observed here (3.5% $-$ 4.9%) at an equivalent data scale suggest that dataset size, rather than task complexity, is the primary factor driving the effectiveness of synthetic data augmentation.
 
 This trend is further exemplified in the extreme low data regime (0.1% $-$ 0.2%, or 6-12 samples per class), where accuracy gains of 10.9% $-$ 19.4% were observed. Consistently, applying synthetic augmentation to 25% of the training set for the CUB-200-2011 dataset (approximately 7.5 samples per class) resulted in a comparable 8.9% increase in classification accuracy. This implies that the additional task complexity associated with fine-grained classification does not lead to a larger boost in accuracy when augmenting a dataset at similar data scale, as might be naively expected.
 
 Varying the guidance scale used to generate synthetic samples ($w = 3$ versus $w = 5$) has only a minor impact on downstream classification gains. When the guidance scale is higher, samples adhere more strictly to class labels at the expense of diversity. In the extreme low-data regime (< 1%), this reduced variance causes a slight decrease in accuracy improvement, as the greater diversity found at $w = 3$ aids generalization by covering a broader portion of the underlying data distribution.
 
 In contrast, when 1% of the training set is used, the limited diversity of the synthetic samples becomes less problematic. In this regime, the stronger reinforcement of class boundaries at $w = 5$ provides a clearer signal for the classifier, resulting in a marginal increase in accuracy improvement.
+
+### Macro-Averaged $\mathsf F_1$ Score
+
+The macro $\mathsf F_1$ score is the unweighted mean of $\mathsf F_1$ scores across all classes. It is useful for identifying systematic underperformance on individual classes, as all classes are treated equally, regardless of size.
+
+| Data Fraction | Baseline<br>$(w = 3)$ | Augmented<br>$(w = 3)$ | Improvement<br>$(w = 3)$ | Baseline<br>$(w = 5)$ | Augmented<br>$(w = 5)$ | Improvement<br>$(w = 5)$ |
+| :-----------: | :-------------------: | :--------------------: | :----------------------: | :-------------------: | :--------------------: | :----------------------: |
+| 0.1%          | 0.5731                | 0.7854                 | 0.2123                   | 0.5564                | 0.7432                 | 0.1868                   |
+| 0.2%          | 0.6754                | 0.7938                 | 0.1184                   | 0.6536                | 0.7556                 | 0.102                    |
+| 0.5%          | 0.7673                | 0.8128                 | 0.0455                   | 0.7474                | 0.7826                 | 0.0352                   |
+| 1%            | 0.8023                | 0.8122                 | 0.0099                   | 0.8027                | 0.8138                 | 0.0111                   |
+| 10%           | 0.885                 | 0.875                  | -0.01                    | 0.8791                | 0.8726                 | -0.0065                  |
+| 100%          | 0.9264                | 0.9161                 | -0.0103                  | 0.9216                | 0.9179                 | -0.0037                  |
+
+The macro $\mathsf F_1$ score follows a similar trend as top-1 accuracy, suggesting that dataset size, rather than task complexity, is the primary factor driving the benefit of augmentation. In addition, it indicates no consistent underperformance across individual classes.
 
 ## Project Structure
 
