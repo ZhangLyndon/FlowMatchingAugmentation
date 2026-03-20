@@ -23,7 +23,7 @@ This project implements and validates synthetic data augmentation for computer v
 - 60,000 synthetic images generated across 10 fashion item categories
 - Evaluation using ResNet-18 (pre-trained on ImageNet), fine-tuned on fractions of the training set, with and without synthetic augmentation
 
-The implementation trains a conditional flow matching model on the training split of the Fashion MNIST dataset, using classifier-free guidance to generate class-conditioned synthetic samples. A ResNet-18 classifier, pre-trained on ImageNet, is then fine-tuned on varying fractions of the training data, with and without synthetic augmentation, to evaluate the impact of data augmentation. Classification performance is assessed using top-1 accuracy and the macro-averaged $\mathsf F_1$ score.
+The implementation trains a conditional flow matching model on the training split of the [Fashion MNIST](https://github.com/zalandoresearch/fashion-mnist) dataset, using classifier-free guidance to generate class-conditioned synthetic samples. A ResNet-18 classifier, pre-trained on ImageNet, is then fine-tuned on varying fractions of the training data, with and without synthetic augmentation, to evaluate the impact of data augmentation. Classification performance is assessed using top-1 accuracy and the macro-averaged $\mathsf F_1$ score.
 
 ## Usage
 
