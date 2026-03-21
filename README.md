@@ -120,6 +120,18 @@ The macro $\mathsf F_1$ score follows a similar trend as top-1 accuracy, suggest
 
 ## Project Structure
 
+```
+FlowMatchingAugmentation
+├── assets				# Project resources
+├── checkpoints			# Model checkpoints (ResNet, U-Net)
+├── classification		# ResNet training / synthetic augmentation pipeline
+├── flow				# Conditional flow matching pipeline
+├── images				# Synthetic image samples
+├── notebooks			# Model training, validation, and evaluation
+├── results				# Experiment results
+├── utils				# Dataset loaders and evaluation metrics
+```
+
 ## Method
 
 ## Conclusion
