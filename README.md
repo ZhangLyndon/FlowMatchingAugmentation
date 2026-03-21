@@ -134,4 +134,38 @@ FlowMatchingAugmentation
 
 ## Method
 
+The procedure for training the CFG conditional flow matching (CFM) model is detailed in the corresponding [notebook](./notebooks/01_flow_matching.ipynb). In brief, a U-Net is trained to approximate a time-dependent vector field that transports samples from an initial noise towards a target conditional data distribution. During training, pairs of images and labels are drawn from a labeled dataset, and a Gaussian conditional probability path is defined to smoothly interpolate between noise and data. To enable classifier-free guidance, an unguided vector field, corresponding to the absence of conditioning, is obtained by randomly dropping class labels with probability $\eta$. During inference, this unguided vector field serves as a baseline, and a guidance scale $w$ is applied to the difference between the guided and unguided fields to reinforce the effect of the class label.
+
+The architecture of the U-Net is as follows:
+
+![unet](./assets/unet.png)
+
+1. The time step is encoded as learnable Fourier features to capture high-frequency temporal variations. Class labels are represented as embedding vectors for each of the $N + 1$ classes, including the null class. Both time and class embeddings are then converted into channel-specific modulations via an affine transformation, which are applied to every pixel in the image.
+
+2. The core building block is the residual layer, which takes an input image and computes the cross-correlation between each input patch and its corresponding kernel weights, thereby extracting spatial features at every pixel. It forms the basis of the network's key components: encoders, which extract hierarchical features while downsampling and increasing channel depth; midcoders, which process the most abstract, high-level feature representations; and decoders, which reconstruct the image from learned feature maps by progressively upsampling and refining features.
+
+3. Short range residual connections, applied after the convolutional blocks within each residual layer, help stabilize gradients, while long-range residual connections connect each encoder/decoder pair and help preserve fine spatial detail.
+
+4. Images take the following path through the neural network:
+
+	a) An initial convolution transforms 1-channel grayscale inputs into feature maps at the starting channel count.
+
+	b) A sequence of 2 encoders progressively downsamples the feature map while doubling the channel count to extract increasingly abstract features. The output feature map is cloned to add back later as a residual connection.
+	
+	c) The midcoder processes features at the most abstract representation (here, 128 channels and $8\times 8$ pixels).
+	
+	d) Residual connections add encoder feature maps back to corresponding decoder stages in LIFO order to preserve fine-grained spatial detail. Each decoder then upsamples the feature map via bilinear interpolation, followed by a convolution that halves the channel count, to reconstruct the image output.
+	
+	e) A final convolution produces a 1-channel prediction for the conditional vector field from decoded features.
+
+At inference time, the neural network approximation $u_t^\theta\left(x\negmedspace\mid\negmedspace y\right)$ of the guided vector field $u_t^\mathrm{target}\left(x\negmedspace\mid\negmedspace y\right)$ is linearly combined with that of the unguided vector field $u_t^\mathrm{target}\left(x\negmedspace\mid\negmedspace\varnothing\right)$ to produce the classifier-free guided vector field $\tilde u_t\left(x\negmedspace\mid\negmedspace y\right)$.
+
+We next fine-tune a ResNet-18 classifier pretrained on ImageNet, replacing its final fully connected layer with a dropout-regularized linear classifier adapted to the 10-class task (the null class is excluded, as it is irrelevant for purposes of classification). The initial convolution layer is modified to process single-channel grayscale images, instead of the usual 3-channel RGB input.
+
+To prevent overfitting, we partition the Fashion MNIST training set into an 80% training and 20% validation split. We monitor the cross-entropy loss on the validation set to determine the optimal number of epochs to train for before overfitting occurs. We find that epoch 21 (out of 30) achieves the lowest validation loss (0.2141), with nearby epochs (16 $-$ 25) clustering tightly between 0.2141 and 0.2267. To ensure consistency and fairness when evaluating the impact of synthetic data augmentation, subsequent training runs are standardized to 25 epochs.
+
+To evaluate the impact of synthetic data augmentation on classification performance, we fine-tune the ResNet classifier on various fractions (0.1% / 0.2% / 0.5% / 1% / 10% / 100%) of the Fashion MNIST training set, both with and without synthetic image augmentation. The synthetic corpus consists of 60,000 images $-$ equivalent in size to the full Fashion MNIST training split $-$ distributed evenly across 10 fashion item categories.
+
+We evaluate classification performance using top-1 accuracy and the macro-averaged $\mathsf F_1$ score. The $\mathsf F_1$ score for each class is calculated as $\displaystyle\mathsf F_1 = \frac{2}{\mathrm{precision}^{-1} + \mathrm{recall}^{-1}} = \frac{2\times\mathrm{TP}}{2\times\mathrm{TP} + \mathrm{FP} + \mathrm{FN}}$, and the macro-averaged $\mathsf F_1$ score then computed by averaging the per-class $\mathsf F_1$ across all categories.
+
 ## Conclusion
