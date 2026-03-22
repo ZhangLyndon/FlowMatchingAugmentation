@@ -15,7 +15,7 @@ Flow Matching Synthetic Image Generation for Data Augmentation
 
 ## Overview
 
-This project implements and validates synthetic data augmentation for computer vision using conditional flow matching (CFM) with classifier-free guidance (CFG), a state-of-the-art generative modeling technique. Our results indicate that incorporating synthetically generated samples into training improves classification accuracy and $\mathsf F_1$ score for coarse-grained fashion item classification compared with models trained solely on real data, with the largest gains observed in the extreme low-data regime (< 1% of the full dataset).
+This project implements and validates synthetic data augmentation for computer vision using conditional flow matching (CFM) with classifier-free guidance (CFG), a state-of-the-art generative modeling technique. Our results indicate that incorporating synthetically generated samples into training improves classification accuracy and $\mathsf F_1$ score for coarse-grained fashion item classification compared with models trained solely on real data, with the largest gains observed in the extreme low-data regime, i.e., < 1% of the full dataset.
 
 **Key Results**
 - Modest but consistent accuracy gains (0.45% $-$ 0.8%) when flow model-based synthetic data augmentation is applied to 1% of the original training set
@@ -97,7 +97,7 @@ We observe the largest gains (> 10%) in the extreme low-data regime, specificall
 
 This result is particularly notable in light of [prior](https://github.com/Srecharan/GenVision) work, which reported a 4.1% improvement in classification accuracy when augmenting the full training split of the [Caltech-UCSD Birds 200-2011](https://www.vision.caltech.edu/datasets/cub_200_2011) (CUB-200-2011) dataset. CUB-200-2011 is a well-known _fine-grained_ visual classification benchmark comprising approximately 30 samples per class across 200 classes, whereas Fashion MNIST is comparatively coarse-grained. The comparable gains observed here (3.5% $-$ 4.9%) at an equivalent data scale suggest that dataset size, rather than task complexity, is the primary factor driving the effectiveness of synthetic data augmentation.
 
-This trend is further exemplified in the extreme low data regime (0.1% $-$ 0.2%, or 6-12 samples per class), where accuracy gains of 10.9% $-$ 19.4% were observed. Consistently, applying synthetic augmentation to 25% of the training set for the CUB-200-2011 dataset (approximately 7.5 samples per class) resulted in a comparable 8.9% increase in classification accuracy. This implies that the additional task complexity associated with fine-grained classification does not lead to a larger boost in accuracy when augmenting a dataset at similar data scale, as might be naively expected.
+This trend is further exemplified in the extreme low-data regime (0.1% $-$ 0.2%, or 6-12 samples per class), where accuracy gains of 10.9% $-$ 19.4% were observed. Consistently, applying synthetic augmentation to 25% of the training set for the CUB-200-2011 dataset (approximately 7.5 samples per class) resulted in a comparable 8.9% increase in classification accuracy. This implies that the additional task complexity associated with fine-grained classification does not lead to a larger boost in accuracy when augmenting a dataset at similar data scale, as might be naively expected.
 
 Varying the guidance scale used to generate synthetic samples ($w = 3$ versus $w = 5$) has only a minor impact on downstream classification gains. When the guidance scale is higher, samples adhere more strictly to class labels at the expense of diversity. In the extreme low-data regime (< 1%), this reduced variance causes a slight decrease in accuracy improvement, as the greater diversity found at $w = 3$ aids generalization by covering a broader portion of the underlying data distribution.
 
@@ -129,12 +129,12 @@ FlowMatchingAugmentation
 ├── images				# Synthetic image samples
 ├── notebooks			# Model training, validation, and evaluation
 ├── results				# Experiment results
-├── utils				# Dataset loaders and evaluation metrics
+├── utils				# DataLoaders and evaluation metrics
 ```
 
 ## Method
 
-The procedure for training the CFG conditional flow matching (CFM) model is detailed in the corresponding [notebook](./notebooks/01_flow_matching.ipynb). In brief, a U-Net is trained to approximate a time-dependent vector field that transports samples from an initial noise towards a target conditional data distribution. During training, pairs of images and labels are drawn from a labeled dataset, and a Gaussian conditional probability path is defined to smoothly interpolate between noise and data. To enable classifier-free guidance, an unguided vector field, corresponding to the absence of conditioning, is obtained by randomly dropping class labels with probability $\eta$. During inference, this unguided vector field serves as a baseline, and a guidance scale $w$ is applied to the difference between the guided and unguided fields to reinforce the effect of the class label.
+The procedure for training the CFG conditional flow matching (CFM) model is detailed in the corresponding [notebook](./notebooks/01_flow_matching.ipynb). In brief, a U-Net is trained to approximate a time-dependent vector field that transports samples from an initial noise towards the target conditional data distribution. During training, pairs of images and labels are drawn from a labeled dataset, and a Gaussian conditional probability path is defined to smoothly interpolate between noise and data. To enable classifier-free guidance, an unguided vector field, corresponding to the absence of conditioning, is obtained by randomly dropping class labels with probability $\eta$. During inference, this unguided vector field serves as a baseline, and a guidance scale $w$ is applied to the difference between the guided and unguided fields to reinforce the effect of the class label.
 
 The architecture of the U-Net is as follows:
 
@@ -175,3 +175,10 @@ Synthetic data augmentation using images generated by conditional flow matching 
 Varying the guidance scale during synthetic sample generation leads to only modest differences in downstream classification performance, with higher sample diversity being more beneficial under extremely limited training set size, and stronger guidance, which sharpens the class-conditional structure, yielding larger gains when more real data are available.
 
 Evaluation of classification performance by the macro $\mathsf F_1$ score yields trends similar to top-1 accuracy, indicating no systematic underperformance concentrated in specific classes.
+
+### Acknowledgements
+
+This project extends and builds upon [similar work](https://github.com/Srecharan/GenVision) by Srecharan Selvam. Key modifications include:
+- Replacing the denoising diffusion with a flow matching model for more efficient sampling.
+- Transitioning from the Caltech-UCSD Birds 200-2011 to the Fashion MNIST dataset to explore synthetic data augmentation in the coarse-grained visual classification regime.
+- Scaling down from the ResNet-50 to the ResNet-18 classifier architecture to mitigate the risk of overfitting.
